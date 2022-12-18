@@ -92,9 +92,11 @@ cc_library {
         "//external/squashfs-tools/squashfs-tools:__subpackages__",
         "//packages/modules/adb:__subpackages__",
         "//system/logging/logd:__subpackages__",
+        "//external/rsync:__subpackages__",
     ],
     recovery_available: true,
     vendor_available: true,
+    product_available: true,
     host_supported: true,
     target: {
         windows: {
