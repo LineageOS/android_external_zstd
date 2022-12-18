@@ -77,6 +77,7 @@ cc_library {
         "//external/elfutils:__subpackages__",
         "//external/libbpf:__subpackages__",
         "//external/mesa3d:__subpackages__",
+        "//external/rsync:__subpackages__",
         "//external/squashfs-tools/squashfs-tools:__subpackages__",
         "//external/stg:__subpackages__",
         "//frameworks/libs/binary_translation/tools:__subpackages__",
