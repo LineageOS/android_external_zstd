@@ -109,15 +109,56 @@ cc_library {
     export_include_dirs: ["lib"],
 }
 
-cc_binary_host {
+cc_binary {
     name: "zstd",
     defaults: ["zstd_defaults"],
-    srcs: [
-        "programs/*.c",
-        // Rebuild the whole library as part of the binary to enable multithreading.
-        "lib/*/*.c",
-    ],
-    cflags: ["-DZSTD_MULTITHREAD=1"],
+    system_ext_specific: true,
+    host_supported: true,
+    target: {
+        android: {
+            srcs: ["programs/*.c"],
+            cflags: [
+                "-DZSTD_GZCOMPRESS",
+                "-DZSTD_GZDECOMPRESS",
+                "-DZSTD_LZ4COMPRESS",
+                "-DZSTD_LZ4DECOMPRESS",
+                "-DZSTD_MULTITHREAD",
+                "-Wall",
+                "-Werror",
+            ],
+            shared_libs: [
+                "liblz4",
+                "libz",
+                "libzstd",
+            ],
+            required: ["zstdgrep", "zstdless"],
+            symlinks: [
+                "zstdcat",
+                "zstdmt",
+                "unzstd",
+            ],
+        },
+        host: {
+            srcs: [
+                "programs/*.c",
+                // Rebuild the whole library as part of the binary to enable multithreading.
+                "lib/*/*.c",
+            ],
+            cflags: ["-DZSTD_MULTITHREAD=1"],
+        },
+    },
+}
+
+sh_binary {
+    name: "zstdgrep",
+    src: "programs/zstdgrep",
+    system_ext_specific: true,
+}
+
+sh_binary {
+    name: "zstdless",
+    src: "programs/zstdless",
+    system_ext_specific: true,
 }
 
 cc_defaults {
