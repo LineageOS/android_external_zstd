@@ -54,6 +54,52 @@ cc_defaults {
     ],
 }
 
+cc_binary {
+    name: "zstd",
+    defaults: ["zstd_defaults"],
+
+    cflags: [
+        "-DZSTD_GZCOMPRESS",
+        "-DZSTD_GZDECOMPRESS",
+        "-DZSTD_LZ4COMPRESS",
+        "-DZSTD_LZ4DECOMPRESS",
+        "-DZSTD_MULTITHREAD",
+        "-Wall",
+        "-Werror",
+    ],
+
+    shared_libs: [
+        "liblz4",
+        "libz",
+        "libzstd",
+    ],
+
+    srcs: ["programs/*.c"],
+    system_ext_specific: true,
+
+    required: ["zstdgrep", "zstdless"],
+
+    symlinks: [
+        "zstdcat",
+        "zstdmt",
+        "unzstd",
+    ],
+}
+
+sh_binary {
+    name: "zstdgrep",
+    defaults: ["zstd_defaults"],
+    src: "programs/zstdgrep",
+    system_ext_specific: true,
+}
+
+sh_binary {
+    name: "zstdless",
+    defaults: ["zstd_defaults"],
+    src: "programs/zstdless",
+    system_ext_specific: true,
+}
+
 cc_library {
     name: "libzstd",
     defaults: ["zstd_defaults"],
@@ -139,6 +185,7 @@ cc_defaults {
         "lib/dictBuilder",
         "tests/fuzz",
     ],
+    system_ext_specific: true,
     cflags: [
         "-Wno-error",
         "-Wno-pointer-arith",
