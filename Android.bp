@@ -41,6 +41,46 @@ license {
     ],
 }
 
+cc_binary {
+    name: "zstd",
+
+    cflags: [
+        "-DZSTD_GZCOMPRESS",
+        "-DZSTD_GZDECOMPRESS",
+        "-DZSTD_LZ4COMPRESS",
+        "-DZSTD_LZ4DECOMPRESS",
+        "-DZSTD_MULTITHREAD",
+        "-Wall",
+        "-Werror",
+    ],
+
+    shared_libs: [
+        "liblz4",
+        "libz",
+        "libzstd",
+    ],
+
+    srcs: ["programs/*.c"],
+
+    required: ["zstdgrep", "zstdless"],
+
+    symlinks: [
+        "zstdcat",
+        "zstdmt",
+        "unzstd",
+    ],
+}
+
+sh_binary {
+    name: "zstdgrep",
+    src: "programs/zstdgrep",
+}
+
+sh_binary {
+    name: "zstdless",
+    src: "programs/zstdless",
+}
+
 cc_library {
     name: "libzstd",
     apex_available: [
