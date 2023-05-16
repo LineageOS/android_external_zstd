@@ -61,6 +61,7 @@ cc_binary {
     ],
 
     srcs: ["programs/*.c"],
+    system_ext_specific: true,
 
     required: ["zstdgrep", "zstdless"],
 
@@ -74,11 +75,13 @@ cc_binary {
 sh_binary {
     name: "zstdgrep",
     src: "programs/zstdgrep",
+    system_ext_specific: true,
 }
 
 sh_binary {
     name: "zstdless",
     src: "programs/zstdless",
+    system_ext_specific: true,
 }
 
 cc_library {
@@ -97,6 +100,7 @@ cc_library {
     recovery_available: true,
     vendor_available: true,
     product_available: true,
+    system_ext_specific: true,
     host_supported: true,
     target: {
         windows: {
@@ -129,6 +133,7 @@ cc_defaults {
         "lib/dictBuilder",
         "tests/fuzz",
     ],
+    system_ext_specific: true,
     cflags: [
         "-Wno-error",
         "-Wno-pointer-arith",
