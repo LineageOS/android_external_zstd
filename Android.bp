@@ -61,6 +61,7 @@ cc_binary {
     ],
 
     srcs: ["programs/*.c"],
+    product_specific: true,
 
     required: ["zstdgrep", "zstdless"],
 
@@ -74,11 +75,13 @@ cc_binary {
 sh_binary {
     name: "zstdgrep",
     src: "programs/zstdgrep",
+    product_specific: true,
 }
 
 sh_binary {
     name: "zstdless",
     src: "programs/zstdless",
+    product_specific: true,
 }
 
 cc_library {
@@ -129,6 +132,7 @@ cc_defaults {
         "lib/dictBuilder",
         "tests/fuzz",
     ],
+    product_specific: true,
     cflags: [
         "-Wno-error",
         "-Wno-pointer-arith",
@@ -144,6 +148,7 @@ cc_fuzz {
     srcs: [
         "tests/fuzz/block_decompress.c",
     ],
+    product_specific: true,
 }
 
 cc_fuzz {
@@ -154,6 +159,7 @@ cc_fuzz {
     srcs: [
         "tests/fuzz/block_round_trip.c",
     ],
+    product_specific: true,
 }
 
 cc_fuzz {
@@ -164,6 +170,7 @@ cc_fuzz {
     srcs: [
         "tests/fuzz/dictionary_decompress.c",
     ],
+    product_specific: true,
 }
 
 cc_fuzz {
@@ -174,6 +181,7 @@ cc_fuzz {
     srcs: [
         "tests/fuzz/dictionary_loader.c",
     ],
+    product_specific: true,
 }
 
 cc_fuzz {
@@ -184,6 +192,7 @@ cc_fuzz {
     srcs: [
         "tests/fuzz/dictionary_round_trip.c",
     ],
+    product_specific: true,
 }
 
 cc_fuzz {
@@ -194,6 +203,7 @@ cc_fuzz {
     srcs: [
         "tests/fuzz/dictionary_stream_round_trip.c",
     ],
+    product_specific: true,
 }
 
 cc_fuzz {
@@ -204,6 +214,7 @@ cc_fuzz {
     srcs: [
         "tests/fuzz/raw_dictionary_round_trip.c",
     ],
+    product_specific: true,
 }
 
 cc_fuzz {
@@ -214,6 +225,7 @@ cc_fuzz {
     srcs: [
         "tests/fuzz/simple_compress.c",
     ],
+    product_specific: true,
 }
 
 cc_fuzz {
@@ -224,6 +236,7 @@ cc_fuzz {
     srcs: [
         "tests/fuzz/simple_decompress.c",
     ],
+    product_specific: true,
 }
 
 cc_fuzz {
@@ -234,6 +247,7 @@ cc_fuzz {
     srcs: [
         "tests/fuzz/simple_round_trip.c",
     ],
+    product_specific: true,
 }
 
 cc_fuzz {
@@ -244,6 +258,7 @@ cc_fuzz {
     srcs: [
         "tests/fuzz/stream_decompress.c",
     ],
+    product_specific: true,
 }
 
 cc_fuzz {
@@ -254,6 +269,7 @@ cc_fuzz {
     srcs: [
         "tests/fuzz/stream_round_trip.c",
     ],
+    product_specific: true,
 }
 
 cc_fuzz {
@@ -264,4 +280,5 @@ cc_fuzz {
     srcs: [
         "tests/fuzz/zstd_frame_info.c",
     ],
+    product_specific: true,
 }
