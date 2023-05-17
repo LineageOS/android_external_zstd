@@ -1,0 +1,55 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "8c7d807f_56d747a0",
+        "filename": "Android.bp",
+        "patchSetId": 2
+      },
+      "lineNbr": 44,
+      "author": {
+        "id": 11883
+      },
+      "writtenOn": "2023-05-17T10:59:58Z",
+      "side": 1,
+      "message": "system_ext?",
+      "revId": "d2f5789b521bd2454d3e14af6055df4ec49fb988",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "de585543_588563e1",
+        "filename": "Android.bp",
+        "patchSetId": 2
+      },
+      "lineNbr": 74,
+      "author": {
+        "id": 11883
+      },
+      "writtenOn": "2023-05-17T10:59:58Z",
+      "side": 1,
+      "message": "ditto",
+      "revId": "d2f5789b521bd2454d3e14af6055df4ec49fb988",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "1f9ebc9c_bad70fd2",
+        "filename": "Android.bp",
+        "patchSetId": 2
+      },
+      "lineNbr": 79,
+      "author": {
+        "id": 11883
+      },
+      "writtenOn": "2023-05-17T10:59:58Z",
+      "side": 1,
+      "message": "ditto",
+      "revId": "d2f5789b521bd2454d3e14af6055df4ec49fb988",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
