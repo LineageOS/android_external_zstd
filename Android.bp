@@ -57,6 +57,7 @@ cc_library {
         "//system/core/fs_mgr/libsnapshot:__subpackages__",
         "//system/core/init:__subpackages__",
         "//system/core/fastboot:__subpackages__",
+        "//system/extras/partition_tools:__subpackages__",
     ],
     recovery_available: true,
     vendor_available: true,
