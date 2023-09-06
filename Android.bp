@@ -86,12 +86,15 @@ cc_defaults {
         "libzstd",
     ],
     srcs: [
+        "contrib/externalSequenceProducer/sequence_producer.c",
         "tests/fuzz/fuzz_data_producer.c",
         "tests/fuzz/fuzz_helpers.c",
         "tests/fuzz/zstd_helpers.c",
     ],
     local_include_dirs: [
+        "contrib/externalSequenceProducer",
         "lib/common",
+        "lib/compress",
         "lib/dictBuilder",
         "tests/fuzz",
     ],
