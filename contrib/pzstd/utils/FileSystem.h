@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * Copyright (c) 2016-present, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -8,18 +8,16 @@
  */
 #pragma once
 
-#include "utils/Portability.h"
 #include "utils/Range.h"
 
 #include <sys/stat.h>
 #include <cerrno>
 #include <cstdint>
-#include <limits>
 #include <system_error>
 
 // A small subset of `std::filesystem`.
 // `std::filesystem` should be a drop in replacement.
-// See https://en.cppreference.com/w/cpp/filesystem for documentation.
+// See http://en.cppreference.com/w/cpp/filesystem for documentation.
 
 namespace pzstd {
 
@@ -30,7 +28,7 @@ typedef struct ::_stat64 file_status;
 typedef struct ::stat file_status;
 #endif
 
-/// https://en.cppreference.com/w/cpp/filesystem/status
+/// http://en.cppreference.com/w/cpp/filesystem/status
 inline file_status status(StringPiece path, std::error_code& ec) noexcept {
   file_status status;
 #if defined(_MSC_VER)
@@ -46,7 +44,7 @@ inline file_status status(StringPiece path, std::error_code& ec) noexcept {
   return status;
 }
 
-/// https://en.cppreference.com/w/cpp/filesystem/is_regular_file
+/// http://en.cppreference.com/w/cpp/filesystem/is_regular_file
 inline bool is_regular_file(file_status status) noexcept {
 #if defined(S_ISREG)
   return S_ISREG(status.st_mode);
@@ -57,12 +55,12 @@ inline bool is_regular_file(file_status status) noexcept {
 #endif
 }
 
-/// https://en.cppreference.com/w/cpp/filesystem/is_regular_file
+/// http://en.cppreference.com/w/cpp/filesystem/is_regular_file
 inline bool is_regular_file(StringPiece path, std::error_code& ec) noexcept {
   return is_regular_file(status(path, ec));
 }
 
-/// https://en.cppreference.com/w/cpp/filesystem/is_directory
+/// http://en.cppreference.com/w/cpp/filesystem/is_directory
 inline bool is_directory(file_status status) noexcept {
 #if defined(S_ISDIR)
   return S_ISDIR(status.st_mode);
@@ -73,22 +71,22 @@ inline bool is_directory(file_status status) noexcept {
 #endif
 }
 
-/// https://en.cppreference.com/w/cpp/filesystem/is_directory
+/// http://en.cppreference.com/w/cpp/filesystem/is_directory
 inline bool is_directory(StringPiece path, std::error_code& ec) noexcept {
   return is_directory(status(path, ec));
 }
 
-/// https://en.cppreference.com/w/cpp/filesystem/file_size
+/// http://en.cppreference.com/w/cpp/filesystem/file_size
 inline std::uintmax_t file_size(
     StringPiece path,
     std::error_code& ec) noexcept {
   auto stat = status(path, ec);
   if (ec) {
-    return std::numeric_limits<uintmax_t>::max();
+    return -1;
   }
   if (!is_regular_file(stat)) {
     ec.assign(ENOTSUP, std::generic_category());
-    return std::numeric_limits<uintmax_t>::max();
+    return -1;
   }
   ec.clear();
   return stat.st_size;

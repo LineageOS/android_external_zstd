@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * Copyright (c) Yann Collet, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -20,17 +20,6 @@
 #include <errno.h>     // errno
 #include <sys/stat.h>  // stat
 #include <zstd.h>
-
-
-/* UNUSED_ATTR tells the compiler it is okay if the function is unused. */
-#if defined(__GNUC__)
-#  define UNUSED_ATTR __attribute__((unused))
-#else
-#  define UNUSED_ATTR
-#endif
-
-#define HEADER_FUNCTION static UNUSED_ATTR
-
 
 /*
  * Define the returned error code from utility functions.
@@ -79,7 +68,7 @@ typedef enum {
  *
  * @return The size of a given file path.
  */
-HEADER_FUNCTION size_t fsize_orDie(const char *filename)
+static size_t fsize_orDie(const char *filename)
 {
     struct stat st;
     if (stat(filename, &st) != 0) {
@@ -107,7 +96,7 @@ HEADER_FUNCTION size_t fsize_orDie(const char *filename)
  * @return If successful this function will return a FILE pointer to an
  * opened file otherwise it sends an error to stderr and exits.
  */
-HEADER_FUNCTION FILE* fopen_orDie(const char *filename, const char *instruction)
+static FILE* fopen_orDie(const char *filename, const char *instruction)
 {
     FILE* const inFile = fopen(filename, instruction);
     if (inFile) return inFile;
@@ -119,7 +108,7 @@ HEADER_FUNCTION FILE* fopen_orDie(const char *filename, const char *instruction)
 /*! fclose_orDie() :
  * Close an opened file using given FILE pointer.
  */
-HEADER_FUNCTION void fclose_orDie(FILE* file)
+static void fclose_orDie(FILE* file)
 {
     if (!fclose(file)) { return; };
     /* error */
@@ -134,7 +123,7 @@ HEADER_FUNCTION void fclose_orDie(FILE* file)
  *
  * @return The number of bytes read.
  */
-HEADER_FUNCTION size_t fread_orDie(void* buffer, size_t sizeToRead, FILE* file)
+static size_t fread_orDie(void* buffer, size_t sizeToRead, FILE* file)
 {
     size_t const readSize = fread(buffer, 1, sizeToRead, file);
     if (readSize == sizeToRead) return readSize;   /* good */
@@ -154,7 +143,7 @@ HEADER_FUNCTION size_t fread_orDie(void* buffer, size_t sizeToRead, FILE* file)
  *
  * @return The number of bytes written.
  */
-HEADER_FUNCTION size_t fwrite_orDie(const void* buffer, size_t sizeToWrite, FILE* file)
+static size_t fwrite_orDie(const void* buffer, size_t sizeToWrite, FILE* file)
 {
     size_t const writtenSize = fwrite(buffer, 1, sizeToWrite, file);
     if (writtenSize == sizeToWrite) return sizeToWrite;   /* good */
@@ -170,7 +159,7 @@ HEADER_FUNCTION size_t fwrite_orDie(const void* buffer, size_t sizeToWrite, FILE
  * cated memory.  If there is an error, this function will send that
  * error to stderr and exit.
  */
-HEADER_FUNCTION void* malloc_orDie(size_t size)
+static void* malloc_orDie(size_t size)
 {
     void* const buff = malloc(size);
     if (buff) return buff;
@@ -188,7 +177,7 @@ HEADER_FUNCTION void* malloc_orDie(size_t size)
  * @return If successful this function will load file into buffer and
  * return file size, otherwise it will printout an error to stderr and exit.
  */
-HEADER_FUNCTION size_t loadFile_orDie(const char* fileName, void* buffer, size_t bufferSize)
+static size_t loadFile_orDie(const char* fileName, void* buffer, size_t bufferSize)
 {
     size_t const fileSize = fsize_orDie(fileName);
     CHECK(fileSize <= bufferSize, "File too large!");
@@ -212,8 +201,7 @@ HEADER_FUNCTION size_t loadFile_orDie(const char* fileName, void* buffer, size_t
  * @return If successful this function will return buffer and bufferSize(=fileSize),
  * otherwise it will printout an error to stderr and exit.
  */
-HEADER_FUNCTION void* mallocAndLoadFile_orDie(const char* fileName, size_t* bufferSize)
-{
+static void* mallocAndLoadFile_orDie(const char* fileName, size_t* bufferSize) {
     size_t const fileSize = fsize_orDie(fileName);
     *bufferSize = fileSize;
     void* const buffer = malloc_orDie(*bufferSize);
@@ -229,7 +217,7 @@ HEADER_FUNCTION void* mallocAndLoadFile_orDie(const char* fileName, size_t* buff
  * Note: This function will send an error to stderr and exit if it
  * cannot write to a given file.
  */
-HEADER_FUNCTION void saveFile_orDie(const char* fileName, const void* buff, size_t buffSize)
+static void saveFile_orDie(const char* fileName, const void* buff, size_t buffSize)
 {
     FILE* const oFile = fopen_orDie(fileName, "wb");
     size_t const wSize = fwrite(buff, 1, buffSize, oFile);

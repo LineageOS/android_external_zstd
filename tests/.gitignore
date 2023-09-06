@@ -12,7 +12,6 @@ zstreamtest
 zstreamtest32
 zstreamtest_asan
 zstreamtest_tsan
-zstreamtest_ubsan
 zstreamtest-dll
 datagen
 paramgrill

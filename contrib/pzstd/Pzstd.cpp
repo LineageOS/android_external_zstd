@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * Copyright (c) 2016-present, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -10,13 +10,11 @@
 #include "Pzstd.h"
 #include "SkippableFrame.h"
 #include "utils/FileSystem.h"
-#include "utils/Portability.h"
 #include "utils/Range.h"
 #include "utils/ScopeGuard.h"
 #include "utils/ThreadPool.h"
 #include "utils/WorkQueue.h"
 
-#include <algorithm>
 #include <chrono>
 #include <cinttypes>
 #include <cstddef>
@@ -338,10 +336,6 @@ static size_t calculateStep(
     const ZSTD_parameters &params) {
   (void)size;
   (void)numThreads;
-  // Not validated to work correctly for window logs > 23.
-  // It will definitely fail if windowLog + 2 is >= 4GB because
-  // the skippable frame can only store sizes up to 4GB.
-  assert(params.cParams.windowLog <= 23);
   return size_t{1} << (params.cParams.windowLog + 2);
 }
 
@@ -593,8 +587,7 @@ std::uint64_t writeFile(
       // start writing before compression is done because we need to know the
       // compressed size.
       // Wait for the compressed size to be available and write skippable frame
-      assert(uint64_t(out->size()) < uint64_t(1) << 32);
-      SkippableFrame frame(uint32_t(out->size()));
+      SkippableFrame frame(out->size());
       if (!writeData(frame.data(), outputFd)) {
         errorHolder.setError("Failed to write output");
         return bytesWritten;
