@@ -1,5 +1,5 @@
 # ################################################################
-# Copyright (c) Meta Platforms, Inc. and affiliates.
+# Copyright (c) Yann Collet, Facebook, Inc.
 # All rights reserved.
 #
 # This source code is licensed under both the BSD-style license (found in the
@@ -298,7 +298,7 @@ INSTALL_DATA    ?= $(INSTALL) -m 644
 
 libzstd.pc: libzstd.pc.in
 	@echo creating pkgconfig
-	@sed \
+	@sed $(SED_ERE_OPT) \
 	        -e 's|@PREFIX@|$(PREFIX)|' \
 	        -e 's|@EXEC_PREFIX@|$(PCEXEC_PREFIX)|' \
 	        -e 's|@INCLUDEDIR@|$(PCINCPREFIX)$(PCINCDIR)|' \

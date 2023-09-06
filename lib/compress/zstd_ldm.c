@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * Copyright (c) Yann Collet, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -242,11 +242,11 @@ static size_t ZSTD_ldm_fillFastTables(ZSTD_matchState_t* ms,
     switch(ms->cParams.strategy)
     {
     case ZSTD_fast:
-        ZSTD_fillHashTable(ms, iend, ZSTD_dtlm_fast, ZSTD_tfp_forCCtx);
+        ZSTD_fillHashTable(ms, iend, ZSTD_dtlm_fast);
         break;
 
     case ZSTD_dfast:
-        ZSTD_fillDoubleHashTable(ms, iend, ZSTD_dtlm_fast, ZSTD_tfp_forCCtx);
+        ZSTD_fillDoubleHashTable(ms, iend, ZSTD_dtlm_fast);
         break;
 
     case ZSTD_greedy:
@@ -549,7 +549,7 @@ size_t ZSTD_ldm_generateSequences(
          * the window through early invalidation.
          * TODO: * Test the chunk size.
          *       * Try invalidation after the sequence generation and test the
-         *         offset against maxDist directly.
+         *         the offset against maxDist directly.
          *
          * NOTE: Because of dictionaries + sequence splitting we MUST make sure
          * that any offset used is valid at the END of the sequence, since it may
@@ -711,7 +711,7 @@ size_t ZSTD_ldm_blockCompress(rawSeqStore_t* rawSeqStore,
             rep[0] = sequence.offset;
             /* Store the sequence */
             ZSTD_storeSeq(seqStore, newLitLength, ip - newLitLength, iend,
-                          OFFSET_TO_OFFBASE(sequence.offset),
+                          STORE_OFFSET(sequence.offset),
                           sequence.matchLength);
             ip += sequence.matchLength;
         }
