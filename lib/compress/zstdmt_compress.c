@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * Copyright (c) Yann Collet, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -20,7 +20,6 @@
 
 
 /* ======   Dependencies   ====== */
-#include "../common/allocations.h"  /* ZSTD_customMalloc, ZSTD_customCalloc, ZSTD_customFree */
 #include "../common/zstd_deps.h"   /* ZSTD_memcpy, ZSTD_memset, INT_MAX, UINT_MAX */
 #include "../common/mem.h"         /* MEM_STATIC */
 #include "../common/pool.h"        /* threadpool */
@@ -267,11 +266,11 @@ static void ZSTDMT_releaseBuffer(ZSTDMT_bufferPool* bufPool, buffer_t buf)
  *   1 buffer for input loading
  *   1 buffer for "next input" when submitting current one
  *   1 buffer stuck in queue */
-#define BUF_POOL_MAX_NB_BUFFERS(nbWorkers) (2*(nbWorkers) + 3)
+#define BUF_POOL_MAX_NB_BUFFERS(nbWorkers) 2*nbWorkers + 3
 
 /* After a worker releases its rawSeqStore, it is immediately ready for reuse.
  * So we only need one seq buffer per worker. */
-#define SEQ_POOL_MAX_NB_BUFFERS(nbWorkers) (nbWorkers)
+#define SEQ_POOL_MAX_NB_BUFFERS(nbWorkers) nbWorkers
 
 /* =====   Seq Pool Wrapper   ====== */
 
@@ -720,7 +719,7 @@ static void ZSTDMT_compressionJob(void* jobDescription)
     ZSTDMT_serialState_update(job->serial, cctx, rawSeqStore, job->src, job->jobID);
 
     if (!job->firstJob) {  /* flush and overwrite frame header when it's not first job */
-        size_t const hSize = ZSTD_compressContinue_public(cctx, dstBuff.start, dstBuff.capacity, job->src.start, 0);
+        size_t const hSize = ZSTD_compressContinue(cctx, dstBuff.start, dstBuff.capacity, job->src.start, 0);
         if (ZSTD_isError(hSize)) JOB_ERROR(hSize);
         DEBUGLOG(5, "ZSTDMT_compressionJob: flush and overwrite %u bytes of frame header (not first job)", (U32)hSize);
         ZSTD_invalidateRepCodes(cctx);
@@ -738,7 +737,7 @@ static void ZSTDMT_compressionJob(void* jobDescription)
         DEBUGLOG(5, "ZSTDMT_compressionJob: compress %u bytes in %i blocks", (U32)job->src.size, nbChunks);
         assert(job->cSize == 0);
         for (chunkNb = 1; chunkNb < nbChunks; chunkNb++) {
-            size_t const cSize = ZSTD_compressContinue_public(cctx, op, oend-op, ip, chunkSize);
+            size_t const cSize = ZSTD_compressContinue(cctx, op, oend-op, ip, chunkSize);
             if (ZSTD_isError(cSize)) JOB_ERROR(cSize);
             ip += chunkSize;
             op += cSize; assert(op < oend);
@@ -758,8 +757,8 @@ static void ZSTDMT_compressionJob(void* jobDescription)
             size_t const lastBlockSize1 = job->src.size & (chunkSize-1);
             size_t const lastBlockSize = ((lastBlockSize1==0) & (job->src.size>=chunkSize)) ? chunkSize : lastBlockSize1;
             size_t const cSize = (job->lastJob) ?
-                 ZSTD_compressEnd_public(cctx, op, oend-op, ip, lastBlockSize) :
-                 ZSTD_compressContinue_public(cctx, op, oend-op, ip, lastBlockSize);
+                 ZSTD_compressEnd     (cctx, op, oend-op, ip, lastBlockSize) :
+                 ZSTD_compressContinue(cctx, op, oend-op, ip, lastBlockSize);
             if (ZSTD_isError(cSize)) JOB_ERROR(cSize);
             lastCBlockSize = cSize;
     }   }
@@ -1735,7 +1734,7 @@ findSynchronizationPoint(ZSTDMT_CCtx const* mtctx, ZSTD_inBuffer const input)
         }
     } else {
         /* We have enough bytes buffered to initialize the hash,
-         * and have processed enough bytes to find a sync point.
+         * and are have processed enough bytes to find a sync point.
          * Start scanning at the beginning of the input.
          */
         assert(mtctx->inBuff.filled >= RSYNC_MIN_BLOCK_SIZE);
@@ -1762,24 +1761,17 @@ findSynchronizationPoint(ZSTDMT_CCtx const* mtctx, ZSTD_inBuffer const input)
      * then a block will be emitted anyways, but this is okay, since if we
      * are already synchronized we will remain synchronized.
      */
-    assert(pos < RSYNC_LENGTH || ZSTD_rollingHash_compute(istart + pos - RSYNC_LENGTH, RSYNC_LENGTH) == hash);
     for (; pos < syncPoint.toLoad; ++pos) {
         BYTE const toRemove = pos < RSYNC_LENGTH ? prev[pos] : istart[pos - RSYNC_LENGTH];
-        /* This assert is very expensive, and Debian compiles with asserts enabled.
-         * So disable it for now. We can get similar coverage by checking it at the
-         * beginning & end of the loop.
-         * assert(pos < RSYNC_LENGTH || ZSTD_rollingHash_compute(istart + pos - RSYNC_LENGTH, RSYNC_LENGTH) == hash);
-         */
+        assert(pos < RSYNC_LENGTH || ZSTD_rollingHash_compute(istart + pos - RSYNC_LENGTH, RSYNC_LENGTH) == hash);
         hash = ZSTD_rollingHash_rotate(hash, toRemove, istart[pos], primePower);
         assert(mtctx->inBuff.filled + pos >= RSYNC_MIN_BLOCK_SIZE);
         if ((hash & hitMask) == hitMask) {
             syncPoint.toLoad = pos + 1;
             syncPoint.flush = 1;
-            ++pos; /* for assert */
             break;
         }
     }
-    assert(pos < RSYNC_LENGTH || ZSTD_rollingHash_compute(istart + pos - RSYNC_LENGTH, RSYNC_LENGTH) == hash);
     return syncPoint;
 }
 

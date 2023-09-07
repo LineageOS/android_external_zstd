@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * Copyright (c) Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -19,7 +19,6 @@
 #include "fuzz.h"
 #include "xxhash.h"
 #include "zstd.h"
-#include "fuzz_data_producer.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -62,12 +61,6 @@ extern "C" {
  * that malloc doesn't fail.
  */
 void* FUZZ_malloc(size_t size);
-
-/**
- * malloc except returns random pointer for zero sized data and FUZZ_ASSERT
- * that malloc doesn't fail.
- */
-void* FUZZ_malloc_rand(size_t size,  FUZZ_dataProducer_t *producer);
 
 /**
  * memcmp but accepts NULL.

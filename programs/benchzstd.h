@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * Copyright (c) Yann Collet, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -81,13 +81,21 @@ BMK_benchResult_t BMK_extract_benchResult(BMK_benchOutcome_t outcome);
  *      2 : + result + interaction + warnings;
  *      3 : + information;
  *      4 : + debug
- * @return: 0 on success, !0 on error
+ * @return:
+ *      a variant, which expresses either an error, or a valid result.
+ *      Use BMK_isSuccessful_benchOutcome() to check if function was successful.
+ *      If yes, extract the valid result with BMK_extract_benchResult(),
+ *      it will contain :
+ *          .cSpeed: compression speed in bytes per second,
+ *          .dSpeed: decompression speed in bytes per second,
+ *          .cSize : compressed size, in bytes
+ *          .cMem  : memory budget required for the compression context
  */
-int BMK_benchFiles(
-            const char* const * fileNamesTable, unsigned nbFiles,
-            const char* dictFileName,
-            int cLevel, const ZSTD_compressionParameters* compressionParams,
-            int displayLevel);
+BMK_benchOutcome_t BMK_benchFiles(
+                   const char* const * fileNamesTable, unsigned nbFiles,
+                   const char* dictFileName,
+                   int cLevel, const ZSTD_compressionParameters* compressionParams,
+                   int displayLevel);
 
 
 typedef enum {
@@ -118,11 +126,11 @@ BMK_advancedParams_t BMK_initAdvancedParams(void);
 /*! BMK_benchFilesAdvanced():
  *  Same as BMK_benchFiles(),
  *  with more controls, provided through advancedParams_t structure */
-int BMK_benchFilesAdvanced(
-               const char* const * fileNamesTable, unsigned nbFiles,
-               const char* dictFileName,
-               int cLevel, const ZSTD_compressionParameters* compressionParams,
-               int displayLevel, const BMK_advancedParams_t* adv);
+BMK_benchOutcome_t BMK_benchFilesAdvanced(
+                   const char* const * fileNamesTable, unsigned nbFiles,
+                   const char* dictFileName,
+                   int cLevel, const ZSTD_compressionParameters* compressionParams,
+                   int displayLevel, const BMK_advancedParams_t* adv);
 
 /*! BMK_syntheticTest() -- called from zstdcli */
 /*  Generates a sample with datagen, using compressibility argument */
@@ -131,11 +139,20 @@ int BMK_benchFilesAdvanced(
  *  compressionParams - basic compression Parameters
  *  displayLevel - see benchFiles
  *  adv - see advanced_Params_t
- * @return: 0 on success, !0 on error
+ * @return:
+ *      a variant, which expresses either an error, or a valid result.
+ *      Use BMK_isSuccessful_benchOutcome() to check if function was successful.
+ *      If yes, extract the valid result with BMK_extract_benchResult(),
+ *      it will contain :
+ *          .cSpeed: compression speed in bytes per second,
+ *          .dSpeed: decompression speed in bytes per second,
+ *          .cSize : compressed size, in bytes
+ *          .cMem  : memory budget required for the compression context
  */
-int BMK_syntheticTest(int cLevel, double compressibility,
-                      const ZSTD_compressionParameters* compressionParams,
-                      int displayLevel, const BMK_advancedParams_t* adv);
+BMK_benchOutcome_t BMK_syntheticTest(
+                          int cLevel, double compressibility,
+                          const ZSTD_compressionParameters* compressionParams,
+                          int displayLevel, const BMK_advancedParams_t* adv);
 
 
 
@@ -173,8 +190,8 @@ BMK_benchOutcome_t BMK_benchMem(const void* srcBuffer, size_t srcSize,
                         int displayLevel, const char* displayName);
 
 
-/* BMK_benchMemAdvanced() : used by Paramgrill
- * same as BMK_benchMem() with following additional options :
+/* BMK_benchMemAdvanced() : same as BMK_benchMem()
+ * with following additional options :
  * dstBuffer - destination buffer to write compressed output in, NULL if none provided.
  * dstCapacity - capacity of destination buffer, give 0 if dstBuffer = NULL
  * adv = see advancedParams_t

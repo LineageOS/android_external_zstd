@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * Copyright (c) Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -21,22 +21,6 @@ void* FUZZ_malloc(size_t size)
         return mem;
     }
     return NULL;
-}
-
-void* FUZZ_malloc_rand(size_t size, FUZZ_dataProducer_t *producer)
-{
-    if (size > 0) {
-        void* const mem = malloc(size);
-        FUZZ_ASSERT(mem);
-        return mem;
-    } else {
-        uintptr_t ptr = 0;
-        /* Add +- 1M 50% of the time */
-        if (FUZZ_dataProducer_uint32Range(producer, 0, 1))
-            FUZZ_dataProducer_int32Range(producer, -1000000, 1000000);
-        return (void*)ptr;
-    }
-
 }
 
 int FUZZ_memcmp(void const* lhs, void const* rhs, size_t size)

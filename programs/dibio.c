@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * Copyright (c) Yann Collet, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -27,11 +27,10 @@
 #include <string.h>         /* memset */
 #include <stdio.h>          /* fprintf, fopen, ftello64 */
 #include <errno.h>          /* errno */
+#include <assert.h>
 
 #include "timefn.h"         /* UTIL_time_t, UTIL_clockSpanMicro, UTIL_getTime */
-#include "../lib/common/debug.h" /* assert */
 #include "../lib/common/mem.h"  /* read */
-#include "../lib/zstd_errors.h"
 #include "dibio.h"
 
 
@@ -128,11 +127,8 @@ static int DiB_loadFiles(
     while ( nbSamplesLoaded < sstSize && fileIndex < nbFiles ) {
         size_t fileDataLoaded;
         S64 const fileSize = DiB_getFileSize(fileNamesTable[fileIndex]);
-        if (fileSize <= 0) {
-            /* skip if zero-size or file error */
-            ++fileIndex;
+        if (fileSize <= 0) /* skip if zero-size or file error */
             continue;
-        }
 
         f = fopen( fileNamesTable[fileIndex], "rb");
         if (f == NULL)
@@ -197,8 +193,7 @@ static U32 DiB_rand(U32* src)
 static void DiB_shuffle(const char** fileNamesTable, unsigned nbFiles) {
     U32 seed = 0xFD2FB528;
     unsigned i;
-    if (nbFiles == 0)
-        return;
+    assert(nbFiles >= 1);
     for (i = nbFiles - 1; i > 0; --i) {
         unsigned const j = DiB_rand(&seed) % (i + 1);
         const char* const tmp = fileNamesTable[j];
@@ -274,20 +269,21 @@ static fileStats DiB_fileStats(const char** fileNamesTable, int nbFiles, size_t 
     int n;
     memset(&fs, 0, sizeof(fs));
 
-    /* We assume that if chunking is requested, the chunk size is < SAMPLESIZE_MAX */
+    // We assume that if chunking is requested, the chunk size is < SAMPLESIZE_MAX
     assert( chunkSize <= SAMPLESIZE_MAX );
 
     for (n=0; n<nbFiles; n++) {
       S64 const fileSize = DiB_getFileSize(fileNamesTable[n]);
-      /* TODO: is there a minimum sample size? What if the file is 1-byte? */
+      // TODO: is there a minimum sample size? What if the file is 1-byte?
       if (fileSize == 0) {
         DISPLAYLEVEL(3, "Sample file '%s' has zero size, skipping...\n", fileNamesTable[n]);
         continue;
       }
 
       /* the case where we are breaking up files in sample chunks */
-      if (chunkSize > 0) {
-        /* TODO: is there a minimum sample size? Can we have a 1-byte sample? */
+      if (chunkSize > 0)
+      {
+        // TODO: is there a minimum sample size? Can we have a 1-byte sample?
         fs.nbSamples += (int)((fileSize + chunkSize-1) / chunkSize);
         fs.totalSizeToLoad += fileSize;
       }
@@ -354,7 +350,7 @@ int DiB_trainFromFiles(const char* dictFileName, size_t maxDictSize,
     }
 
     /* Checks */
-    if ((fs.nbSamples && !sampleSizes) || (!srcBuffer) || (!dictBuffer))
+    if ((!sampleSizes) || (!srcBuffer) || (!dictBuffer))
         EXM_THROW(12, "not enough memory for DiB_trainFiles");   /* should not happen */
     if (fs.oneSampleTooLarge) {
         DISPLAYLEVEL(2, "!  Warning : some sample(s) are very large \n");
@@ -383,7 +379,7 @@ int DiB_trainFromFiles(const char* dictFileName, size_t maxDictSize,
         srcBuffer, &loadedSize, sampleSizes, fs.nbSamples, fileNamesTable,
         nbFiles, chunkSize, displayLevel);
 
-    {   size_t dictSize = ZSTD_error_GENERIC;
+    {   size_t dictSize;
         if (params) {
             DiB_fillNoise((char*)srcBuffer + loadedSize, NOISELENGTH);   /* guard band, for end of buffer condition */
             dictSize = ZDICT_trainFromBuffer_legacy(dictBuffer, maxDictSize,
@@ -403,7 +399,8 @@ int DiB_trainFromFiles(const char* dictFileName, size_t maxDictSize,
               dictSize = ZDICT_trainFromBuffer_cover(dictBuffer, maxDictSize, srcBuffer,
                                                      sampleSizes, nbSamplesLoaded, *coverParams);
             }
-        } else if (fastCoverParams != NULL) {
+        } else {
+            assert(fastCoverParams != NULL);
             if (optimize) {
               dictSize = ZDICT_optimizeTrainFromBuffer_fastCover(dictBuffer, maxDictSize,
                                                               srcBuffer, sampleSizes, nbSamplesLoaded,
@@ -418,8 +415,6 @@ int DiB_trainFromFiles(const char* dictFileName, size_t maxDictSize,
               dictSize = ZDICT_trainFromBuffer_fastCover(dictBuffer, maxDictSize, srcBuffer,
                                                         sampleSizes, nbSamplesLoaded, *fastCoverParams);
             }
-        } else {
-            assert(0 /* Impossible */);
         }
         if (ZDICT_isError(dictSize)) {
             DISPLAYLEVEL(1, "dictionary training failed : %s \n", ZDICT_getErrorName(dictSize));   /* should not happen */

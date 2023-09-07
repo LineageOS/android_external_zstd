@@ -1,9 +1,9 @@
 /*
  *  xxHash - Fast Hash algorithm
- *  Copyright (c) Meta Platforms, Inc. and affiliates.
+ *  Copyright (c) Yann Collet, Facebook, Inc.
  *
  *  You can contact the author at :
- *  - xxHash homepage: https://cyan4973.github.io/xxHash/
+ *  - xxHash homepage: http://www.xxhash.com
  *  - xxHash source repository : https://github.com/Cyan4973/xxHash
  *
  * This source code is licensed under both the BSD-style license (found in the
