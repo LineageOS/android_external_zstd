@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * Copyright (c) 2016-2021, Przemyslaw Skibinski, Yann Collet, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -25,9 +25,6 @@ extern "C" {
     #define z_const
 #endif
 
-#if !defined(_Z_OF)
-    #define _Z_OF OF
-#endif
 
 /* returns a string with version of zstd library */
 const char * zstdVersion(void);
