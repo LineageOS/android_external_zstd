@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * Copyright (c) Yann Collet, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -171,7 +171,6 @@ FORCE_NOINLINE size_t ZSTD_decodeLiteralsHeader(ZSTD_DCtx* dctx, void const* src
                 size_t lhSize, litSize, litCSize;
                 U32 const lhlCode = (istart[0] >> 2) & 3;
                 U32 const lhc = MEM_readLE32(istart);
-                int const flags = ZSTD_DCtx_get_bmi2(dctx) ? HUF_flags_bmi2 : 0;
                 switch(lhlCode)
                 {
                 case 0: case 1: default:   /* note : default is impossible, since lhlCode into [0..3] */
@@ -196,16 +195,16 @@ FORCE_NOINLINE size_t ZSTD_decodeLiteralsHeader(ZSTD_DCtx* dctx, void const* src
                 RETURN_ERROR_IF(litSize > ZSTD_BLOCKSIZE_MAX, corruption_detected, "");
                 RETURN_ERROR_IF(litCSize + lhSize > srcSize, corruption_detected, "");
 #ifndef HUF_FORCE_DECOMPRESS_X2
-                return HUF_readDTableX1_wksp(
+                return HUF_readDTableX1_wksp_bmi2(
                         dctx->entropy.hufTable,
                         istart+lhSize, litCSize,
                         dctx->workspace, sizeof(dctx->workspace),
-                        flags);
+                        ZSTD_DCtx_get_bmi2(dctx));
 #else
                 return HUF_readDTableX2_wksp(
                         dctx->entropy.hufTable,
                         istart+lhSize, litCSize,
-                        dctx->workspace, sizeof(dctx->workspace), flags);
+                        dctx->workspace, sizeof(dctx->workspace));
 #endif
             }
         }
@@ -774,9 +773,7 @@ static int benchFiles(U32 benchNb,
             } else {
                 for (benchNb=0; benchNb<100; benchNb++) {
                     benchMem(benchNb, origBuff, benchedSize, cLevel, cparams);
-                }
-                benchNb = 0;
-            }
+            }   }
 
             free(origBuff);
     }   }

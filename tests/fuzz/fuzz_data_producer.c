@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * Copyright (c) Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -8,7 +8,6 @@
  * You may select, at your option, one of the above-listed licenses.
  */
 
-#include "fuzz_helpers.h"
 #include "fuzz_data_producer.h"
 
 struct FUZZ_dataProducer_s{

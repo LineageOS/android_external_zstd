@@ -1,5 +1,5 @@
 # ################################################################
-# Copyright (c) Meta Platforms, Inc. and affiliates.
+# Copyright (c) 2015-present, Yann Collet, Facebook, Inc.
 # All rights reserved.
 #
 # This source code is licensed under both the BSD-style license (found in the
@@ -77,12 +77,6 @@ if (MSVC)
     set(PlatformDependResources ${MSVC_RESOURCE_DIR}/libzstd-dll.rc)
 endif ()
 
-# Explicitly set the language to C for all files, including ASM files.
-# Our assembly expects to be compiled by a C compiler, and is only enabled for
-# __GNUC__ compatible compilers. Otherwise all the ASM code is disabled by
-# macros.
-set_source_files_properties(${Sources} PROPERTIES LANGUAGE C)
-
 # Split project to static and shared libraries build
 set(library_targets)
 if (ZSTD_BUILD_SHARED)
@@ -141,17 +135,30 @@ if (ZSTD_BUILD_STATIC)
             OUTPUT_NAME ${STATIC_LIBRARY_BASE_NAME})
 endif ()
 
-# pkg-config
-include(JoinPaths) # can be replaced by cmake_path(APPEND) in CMake 3.20
-set(PREFIX "${CMAKE_INSTALL_PREFIX}")
-set(EXEC_PREFIX "\${prefix}")
-join_paths(LIBDIR "\${exec_prefix}" "${CMAKE_INSTALL_LIBDIR}")
-join_paths(INCLUDEDIR "\${prefix}" "${CMAKE_INSTALL_INCLUDEDIR}")
-set(LIBS_PRIVATE "${THREADS_LIBS}")
-set(VERSION "${zstd_VERSION}")
+if (UNIX OR MINGW)
+    # pkg-config
+    set(PREFIX "${CMAKE_INSTALL_PREFIX}")
+    set(EXEC_PREFIX "\${prefix}")
+    set(LIBDIR "${CMAKE_INSTALL_FULL_LIBDIR}")
+    set(INCLUDEDIR "${CMAKE_INSTALL_FULL_INCLUDEDIR}")
+    set(VERSION "${zstd_VERSION}")
 
-configure_file("${LIBRARY_DIR}/libzstd.pc.in" "${CMAKE_CURRENT_BINARY_DIR}/libzstd.pc" @ONLY)
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libzstd.pc" DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
+    string(LENGTH "${PREFIX}" PREFIX_LENGTH)
+    string(SUBSTRING "${LIBDIR}" 0 ${PREFIX_LENGTH} LIBDIR_PREFIX)
+    string(SUBSTRING "${LIBDIR}" ${PREFIX_LENGTH} -1 LIBDIR_SUFFIX)
+    string(SUBSTRING "${INCLUDEDIR}" 0 ${PREFIX_LENGTH} INCLUDEDIR_PREFIX)
+    string(SUBSTRING "${INCLUDEDIR}" ${PREFIX_LENGTH} -1 INCLUDEDIR_SUFFIX)
+
+    if ("${INCLUDEDIR_PREFIX}" STREQUAL "${PREFIX}")
+        set(INCLUDEDIR "\${prefix}${INCLUDEDIR_SUFFIX}")
+    endif()
+    if ("${LIBDIR_PREFIX}" STREQUAL "${PREFIX}")
+        set(LIBDIR "\${exec_prefix}${LIBDIR_SUFFIX}")
+    endif()
+
+    configure_file("${LIBRARY_DIR}/libzstd.pc.in" "${CMAKE_CURRENT_BINARY_DIR}/libzstd.pc" @ONLY)
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libzstd.pc" DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
+endif ()
 
 # install target
 install(FILES

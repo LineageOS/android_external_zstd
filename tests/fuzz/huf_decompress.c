@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * Copyright (c) Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -12,6 +12,8 @@
  * This fuzz target performs a zstd round-trip test (compress & decompress),
  * compares the result with the original, and calls abort() on corruption.
  */
+
+#define HUF_STATIC_LINKING_ONLY
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -28,13 +30,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *src, size_t size)
     /* Select random parameters: #streams, X1 or X2 decoding, bmi2 */
     int const streams = FUZZ_dataProducer_int32Range(producer, 0, 1);
     int const symbols = FUZZ_dataProducer_int32Range(producer, 0, 1);
-    int const flags = 0
-        | (ZSTD_cpuid_bmi2(ZSTD_cpuid()) && FUZZ_dataProducer_int32Range(producer, 0, 1) ? HUF_flags_bmi2 : 0)
-        | (FUZZ_dataProducer_int32Range(producer, 0, 1) ? HUF_flags_optimalDepth : 0)
-        | (FUZZ_dataProducer_int32Range(producer, 0, 1) ? HUF_flags_preferRepeat : 0)
-        | (FUZZ_dataProducer_int32Range(producer, 0, 1) ? HUF_flags_suspectUncompressible : 0)
-        | (FUZZ_dataProducer_int32Range(producer, 0, 1) ? HUF_flags_disableAsm : 0)
-        | (FUZZ_dataProducer_int32Range(producer, 0, 1) ? HUF_flags_disableFast : 0);
+    int const bmi2 = ZSTD_cpuid_bmi2(ZSTD_cpuid()) && FUZZ_dataProducer_int32Range(producer, 0, 1);
     /* Select a random cBufSize - it may be too small */
     size_t const dBufSize = FUZZ_dataProducer_uint32Range(producer, 0, 8 * size + 500);
     size_t const maxTableLog = FUZZ_dataProducer_uint32Range(producer, 1, HUF_TABLELOG_MAX);
@@ -46,18 +42,18 @@ int LLVMFuzzerTestOneInput(const uint8_t *src, size_t size)
     size = FUZZ_dataProducer_remainingBytes(producer);
 
     if (symbols == 0) {
-        size_t const err = HUF_readDTableX1_wksp(dt, src, size, wksp, wkspSize, flags);
+        size_t const err = HUF_readDTableX1_wksp_bmi2(dt, src, size, wksp, wkspSize, bmi2);
         if (ZSTD_isError(err))
             goto _out;
     } else {
-        size_t const err = HUF_readDTableX2_wksp(dt, src, size, wksp, wkspSize, flags);
+        size_t const err = HUF_readDTableX2_wksp_bmi2(dt, src, size, wksp, wkspSize, bmi2);
         if (ZSTD_isError(err))
             goto _out;
     }
     if (streams == 0)
-        HUF_decompress1X_usingDTable(dBuf, dBufSize, src, size, dt, flags);
+        HUF_decompress1X_usingDTable_bmi2(dBuf, dBufSize, src, size, dt, bmi2);
     else
-        HUF_decompress4X_usingDTable(dBuf, dBufSize, src, size, dt, flags);
+        HUF_decompress4X_usingDTable_bmi2(dBuf, dBufSize, src, size, dt, bmi2);
 
 _out:
     free(dt);

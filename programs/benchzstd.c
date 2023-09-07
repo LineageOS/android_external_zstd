@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * Copyright (c) Yann Collet, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -13,7 +13,7 @@
 *  Tuning parameters
 ****************************************/
 #ifndef BMK_TIMETEST_DEFAULT_S   /* default minimum time per test */
-# define BMK_TIMETEST_DEFAULT_S 3
+#define BMK_TIMETEST_DEFAULT_S 3
 #endif
 
 
@@ -327,31 +327,26 @@ BMK_benchMemAdvancedNoAlloc(
     /* init */
     memset(&benchResult, 0, sizeof(benchResult));
     if (strlen(displayName)>17) displayName += strlen(displayName) - 17;   /* display last 17 characters */
-    if (adv->mode == BMK_decodeOnly) {
-        /* benchmark only decompression : source must be already compressed */
+    if (adv->mode == BMK_decodeOnly) {  /* benchmark only decompression : source must be already compressed */
         const char* srcPtr = (const char*)srcBuffer;
         U64 totalDSize64 = 0;
         U32 fileNb;
         for (fileNb=0; fileNb<nbFiles; fileNb++) {
             U64 const fSize64 = ZSTD_findDecompressedSize(srcPtr, fileSizes[fileNb]);
-            if (fSize64 == ZSTD_CONTENTSIZE_UNKNOWN) {
-                RETURN_ERROR(32, BMK_benchOutcome_t, "Decompressed size cannot be determined: cannot benchmark");
-            }
-            if (fSize64 == ZSTD_CONTENTSIZE_ERROR) {
-                RETURN_ERROR(32, BMK_benchOutcome_t, "Error while trying to assess decompressed size: data may be invalid");
-            }
+            if (fSize64==0) RETURN_ERROR(32, BMK_benchOutcome_t, "Impossible to determine original size ");
             totalDSize64 += fSize64;
             srcPtr += fileSizes[fileNb];
         }
         {   size_t const decodedSize = (size_t)totalDSize64;
             assert((U64)decodedSize == totalDSize64);   /* check overflow */
             free(*resultBufferPtr);
-            if (totalDSize64 > decodedSize) {  /* size_t overflow */
-                RETURN_ERROR(32, BMK_benchOutcome_t, "decompressed size is too large for local system");
-            }
             *resultBufferPtr = malloc(decodedSize);
             if (!(*resultBufferPtr)) {
-                RETURN_ERROR(33, BMK_benchOutcome_t, "allocation error: not enough memory");
+                RETURN_ERROR(33, BMK_benchOutcome_t, "not enough memory");
+            }
+            if (totalDSize64 > decodedSize) {  /* size_t overflow */
+                free(*resultBufferPtr);
+                RETURN_ERROR(32, BMK_benchOutcome_t, "original size is too large");
             }
             cSize = srcSize;
             srcSize = decodedSize;
@@ -390,10 +385,6 @@ BMK_benchMemAdvancedNoAlloc(
         memcpy(compressedBuffer, srcBuffer, loadedCompressedSize);
     } else {
         RDG_genBuffer(compressedBuffer, maxCompressedSize, 0.10, 0.50, 1);
-    }
-
-    if (!UTIL_support_MT_measurements() && adv->nbWorkers > 1) {
-        OUTPUTLEVEL(2, "Warning : time measurements may be incorrect in multithreading mode... \n")
     }
 
     /* Bench */
@@ -451,7 +442,7 @@ BMK_benchMemAdvancedNoAlloc(
                 BMK_runOutcome_t const cOutcome = BMK_benchTimedFn( timeStateCompress, cbp);
 
                 if (!BMK_isSuccessful_runOutcome(cOutcome)) {
-                    RETURN_ERROR(30, BMK_benchOutcome_t, "compression error");
+                    return BMK_benchOutcome_error();
                 }
 
                 {   BMK_runTime_t const cResult = BMK_extract_runTime(cOutcome);
@@ -479,7 +470,7 @@ BMK_benchMemAdvancedNoAlloc(
                 BMK_runOutcome_t const dOutcome = BMK_benchTimedFn(timeStateDecompress, dbp);
 
                 if(!BMK_isSuccessful_runOutcome(dOutcome)) {
-                    RETURN_ERROR(30, BMK_benchOutcome_t, "decompression error");
+                    return BMK_benchOutcome_error();
                 }
 
                 {   BMK_runTime_t const dResult = BMK_extract_runTime(dOutcome);
@@ -603,7 +594,7 @@ BMK_benchOutcome_t BMK_benchMemAdvanced(const void* srcBuffer, size_t srcSize,
 
     void* resultBuffer = srcSize ? malloc(srcSize) : NULL;
 
-    int const allocationincomplete = !srcPtrs || !srcSizes || !cPtrs ||
+    int allocationincomplete = !srcPtrs || !srcSizes || !cPtrs ||
         !cSizes || !cCapacities || !resPtrs || !resSizes ||
         !timeStateCompress || !timeStateDecompress ||
         !cctx || !dctx ||
@@ -697,9 +688,9 @@ static BMK_benchOutcome_t BMK_benchCLevel(const void* srcBuffer, size_t benchedS
                                 displayLevel, displayName, adv);
 }
 
-int BMK_syntheticTest(int cLevel, double compressibility,
-                      const ZSTD_compressionParameters* compressionParams,
-                      int displayLevel, const BMK_advancedParams_t* adv)
+BMK_benchOutcome_t BMK_syntheticTest(int cLevel, double compressibility,
+                          const ZSTD_compressionParameters* compressionParams,
+                          int displayLevel, const BMK_advancedParams_t* adv)
 {
     char name[20] = {0};
     size_t const benchedSize = 10000000;
@@ -707,16 +698,12 @@ int BMK_syntheticTest(int cLevel, double compressibility,
     BMK_benchOutcome_t res;
 
     if (cLevel > ZSTD_maxCLevel()) {
-        DISPLAYLEVEL(1, "Invalid Compression Level");
-        return 15;
+        RETURN_ERROR(15, BMK_benchOutcome_t, "Invalid Compression Level");
     }
 
     /* Memory allocation */
     srcBuffer = malloc(benchedSize);
-    if (!srcBuffer) {
-        DISPLAYLEVEL(1, "allocation error : not enough memory");
-        return 16;
-    }
+    if (!srcBuffer) RETURN_ERROR(21, BMK_benchOutcome_t, "not enough memory");
 
     /* Fill input buffer */
     RDG_genBuffer(srcBuffer, benchedSize, compressibility, 0.0, 0);
@@ -732,7 +719,7 @@ int BMK_syntheticTest(int cLevel, double compressibility,
     /* clean up */
     free(srcBuffer);
 
-    return !BMK_isSuccessful_benchOutcome(res);
+    return res;
 }
 
 
@@ -794,7 +781,7 @@ static int BMK_loadFiles(void* buffer, size_t bufferSize,
     return 0;
 }
 
-int BMK_benchFilesAdvanced(
+BMK_benchOutcome_t BMK_benchFilesAdvanced(
                         const char* const * fileNamesTable, unsigned nbFiles,
                         const char* dictFileName, int cLevel,
                         const ZSTD_compressionParameters* compressionParams,
@@ -809,25 +796,19 @@ int BMK_benchFilesAdvanced(
     U64 const totalSizeToLoad = UTIL_getTotalFileSize(fileNamesTable, nbFiles);
 
     if (!nbFiles) {
-        DISPLAYLEVEL(1, "No Files to Benchmark");
-        return 13;
+        RETURN_ERROR(14, BMK_benchOutcome_t, "No Files to Benchmark");
     }
 
     if (cLevel > ZSTD_maxCLevel()) {
-        DISPLAYLEVEL(1, "Invalid Compression Level");
-        return 14;
+        RETURN_ERROR(15, BMK_benchOutcome_t, "Invalid Compression Level");
     }
 
     if (totalSizeToLoad == UTIL_FILESIZE_UNKNOWN) {
-        DISPLAYLEVEL(1, "Error loading files");
-        return 15;
+        RETURN_ERROR(9, BMK_benchOutcome_t, "Error loading files");
     }
 
     fileSizes = (size_t*)calloc(nbFiles, sizeof(size_t));
-    if (!fileSizes) {
-        DISPLAYLEVEL(1, "not enough memory for fileSizes");
-        return 16;
-    }
+    if (!fileSizes) RETURN_ERROR(12, BMK_benchOutcome_t, "not enough memory for fileSizes");
 
     /* Load dictionary */
     if (dictFileName != NULL) {
@@ -835,21 +816,18 @@ int BMK_benchFilesAdvanced(
         if (dictFileSize == UTIL_FILESIZE_UNKNOWN) {
             DISPLAYLEVEL(1, "error loading %s : %s \n", dictFileName, strerror(errno));
             free(fileSizes);
-            DISPLAYLEVEL(1, "benchmark aborted");
-            return 17;
+            RETURN_ERROR(9, BMK_benchOutcome_t, "benchmark aborted");
         }
         if (dictFileSize > 64 MB) {
             free(fileSizes);
-            DISPLAYLEVEL(1, "dictionary file %s too large", dictFileName);
-            return 18;
+            RETURN_ERROR(10, BMK_benchOutcome_t, "dictionary file %s too large", dictFileName);
         }
         dictBufferSize = (size_t)dictFileSize;
         dictBuffer = malloc(dictBufferSize);
         if (dictBuffer==NULL) {
             free(fileSizes);
-            DISPLAYLEVEL(1, "not enough memory for dictionary (%u bytes)",
+            RETURN_ERROR(11, BMK_benchOutcome_t, "not enough memory for dictionary (%u bytes)",
                             (unsigned)dictBufferSize);
-            return 19;
         }
 
         {   int const errorCode = BMK_loadFiles(dictBuffer, dictBufferSize,
@@ -871,8 +849,7 @@ int BMK_benchFilesAdvanced(
     if (!srcBuffer) {
         free(dictBuffer);
         free(fileSizes);
-        DISPLAYLEVEL(1, "not enough memory for srcBuffer");
-        return 20;
+        RETURN_ERROR(12, BMK_benchOutcome_t, "not enough memory");
     }
 
     /* Load input buffer */
@@ -900,11 +877,12 @@ _cleanUp:
     free(srcBuffer);
     free(dictBuffer);
     free(fileSizes);
-    return !BMK_isSuccessful_benchOutcome(res);
+    return res;
 }
 
 
-int BMK_benchFiles(const char* const * fileNamesTable, unsigned nbFiles,
+BMK_benchOutcome_t BMK_benchFiles(
+                    const char* const * fileNamesTable, unsigned nbFiles,
                     const char* dictFileName,
                     int cLevel, const ZSTD_compressionParameters* compressionParams,
                     int displayLevel)
