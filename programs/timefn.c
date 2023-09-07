@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * Copyright (c) Yann Collet, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -12,8 +12,7 @@
 /* ===  Dependencies  === */
 
 #include "timefn.h"
-#include "platform.h" /* set _POSIX_C_SOURCE */
-#include <time.h>     /* CLOCK_MONOTONIC, TIME_UTC */
+
 
 /*-****************************************
 *  Time functions
@@ -21,11 +20,12 @@
 
 #if defined(_WIN32)   /* Windows */
 
-#include <windows.h>  /* LARGE_INTEGER */
 #include <stdlib.h>   /* abort */
 #include <stdio.h>    /* perror */
 
-UTIL_time_t UTIL_getTime(void)
+UTIL_time_t UTIL_getTime(void) { UTIL_time_t x; QueryPerformanceCounter(&x); return x; }
+
+PTime UTIL_getSpanTimeMicro(UTIL_time_t clockStart, UTIL_time_t clockEnd)
 {
     static LARGE_INTEGER ticksPerSecond;
     static int init = 0;
@@ -36,20 +36,30 @@ UTIL_time_t UTIL_getTime(void)
         }
         init = 1;
     }
-    {   UTIL_time_t r;
-        LARGE_INTEGER x;
-        QueryPerformanceCounter(&x);
-        r.t = (PTime)(x.QuadPart * 1000000000ULL / ticksPerSecond.QuadPart);
-        return r;
-    }
+    return 1000000ULL*(clockEnd.QuadPart - clockStart.QuadPart)/ticksPerSecond.QuadPart;
 }
+
+PTime UTIL_getSpanTimeNano(UTIL_time_t clockStart, UTIL_time_t clockEnd)
+{
+    static LARGE_INTEGER ticksPerSecond;
+    static int init = 0;
+    if (!init) {
+        if (!QueryPerformanceFrequency(&ticksPerSecond)) {
+            perror("timefn::QueryPerformanceFrequency");
+            abort();
+        }
+        init = 1;
+    }
+    return 1000000000ULL*(clockEnd.QuadPart - clockStart.QuadPart)/ticksPerSecond.QuadPart;
+}
+
 
 
 #elif defined(__APPLE__) && defined(__MACH__)
 
-#include <mach/mach_time.h> /* mach_timebase_info_data_t, mach_timebase_info, mach_absolute_time */
+UTIL_time_t UTIL_getTime(void) { return mach_absolute_time(); }
 
-UTIL_time_t UTIL_getTime(void)
+PTime UTIL_getSpanTimeMicro(UTIL_time_t clockStart, UTIL_time_t clockEnd)
 {
     static mach_timebase_info_data_t rate;
     static int init = 0;
@@ -57,39 +67,23 @@ UTIL_time_t UTIL_getTime(void)
         mach_timebase_info(&rate);
         init = 1;
     }
-    {   UTIL_time_t r;
-        r.t = mach_absolute_time() * (PTime)rate.numer / (PTime)rate.denom;
-        return r;
-    }
+    return (((clockEnd - clockStart) * (PTime)rate.numer) / ((PTime)rate.denom))/1000ULL;
 }
 
-/* POSIX.1-2001 (optional) */
-#elif defined(CLOCK_MONOTONIC)
-
-#include <stdlib.h>   /* abort */
-#include <stdio.h>    /* perror */
-
-UTIL_time_t UTIL_getTime(void)
+PTime UTIL_getSpanTimeNano(UTIL_time_t clockStart, UTIL_time_t clockEnd)
 {
-    /* time must be initialized, othersize it may fail msan test.
-     * No good reason, likely a limitation of timespec_get() for some target */
-    struct timespec time = { 0, 0 };
-    if (clock_gettime(CLOCK_MONOTONIC, &time) != 0) {
-        perror("timefn::clock_gettime(CLOCK_MONOTONIC)");
-        abort();
+    static mach_timebase_info_data_t rate;
+    static int init = 0;
+    if (!init) {
+        mach_timebase_info(&rate);
+        init = 1;
     }
-    {   UTIL_time_t r;
-        r.t = (PTime)time.tv_sec * 1000000000ULL + (PTime)time.tv_nsec;
-        return r;
-    }
+    return ((clockEnd - clockStart) * (PTime)rate.numer) / ((PTime)rate.denom);
 }
 
 
-/* C11 requires support of timespec_get().
- * However, FreeBSD 11 claims C11 compliance while lacking timespec_get().
- * Double confirm timespec_get() support by checking the definition of TIME_UTC.
- * However, some versions of Android manage to simultaneously define TIME_UTC
- * and lack timespec_get() support... */
+/* C11 requires timespec_get, but FreeBSD 11 lacks it, while still claiming C11 compliance.
+   Android also lacks it but does define TIME_UTC. */
 #elif (defined (__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L) /* C11 */) \
     && defined(TIME_UTC) && !defined(__ANDROID__)
 
@@ -100,49 +94,65 @@ UTIL_time_t UTIL_getTime(void)
 {
     /* time must be initialized, othersize it may fail msan test.
      * No good reason, likely a limitation of timespec_get() for some target */
-    struct timespec time = { 0, 0 };
+    UTIL_time_t time = UTIL_TIME_INITIALIZER;
     if (timespec_get(&time, TIME_UTC) != TIME_UTC) {
-        perror("timefn::timespec_get(TIME_UTC)");
+        perror("timefn::timespec_get");
         abort();
     }
-    {   UTIL_time_t r;
-        r.t = (PTime)time.tv_sec * 1000000000ULL + (PTime)time.tv_nsec;
-        return r;
+    return time;
+}
+
+static UTIL_time_t UTIL_getSpanTime(UTIL_time_t begin, UTIL_time_t end)
+{
+    UTIL_time_t diff;
+    if (end.tv_nsec < begin.tv_nsec) {
+        diff.tv_sec = (end.tv_sec - 1) - begin.tv_sec;
+        diff.tv_nsec = (end.tv_nsec + 1000000000ULL) - begin.tv_nsec;
+    } else {
+        diff.tv_sec = end.tv_sec - begin.tv_sec;
+        diff.tv_nsec = end.tv_nsec - begin.tv_nsec;
     }
-}
-
-
-#else   /* relies on standard C90 (note : clock_t produces wrong measurements for multi-threaded workloads) */
-
-UTIL_time_t UTIL_getTime(void)
-{
-    UTIL_time_t r;
-    r.t = (PTime)clock() * 1000000000ULL / CLOCKS_PER_SEC;
-    return r;
-}
-
-#define TIME_MT_MEASUREMENTS_NOT_SUPPORTED
-
-#endif
-
-/* ==== Common functions, valid for all time API ==== */
-
-PTime UTIL_getSpanTimeNano(UTIL_time_t clockStart, UTIL_time_t clockEnd)
-{
-    return clockEnd.t - clockStart.t;
+    return diff;
 }
 
 PTime UTIL_getSpanTimeMicro(UTIL_time_t begin, UTIL_time_t end)
 {
-    return UTIL_getSpanTimeNano(begin, end) / 1000ULL;
+    UTIL_time_t const diff = UTIL_getSpanTime(begin, end);
+    PTime micro = 0;
+    micro += 1000000ULL * diff.tv_sec;
+    micro += diff.tv_nsec / 1000ULL;
+    return micro;
 }
 
+PTime UTIL_getSpanTimeNano(UTIL_time_t begin, UTIL_time_t end)
+{
+    UTIL_time_t const diff = UTIL_getSpanTime(begin, end);
+    PTime nano = 0;
+    nano += 1000000000ULL * diff.tv_sec;
+    nano += diff.tv_nsec;
+    return nano;
+}
+
+
+
+#else   /* relies on standard C90 (note : clock_t measurements can be wrong when using multi-threading) */
+
+UTIL_time_t UTIL_getTime(void) { return clock(); }
+PTime UTIL_getSpanTimeMicro(UTIL_time_t clockStart, UTIL_time_t clockEnd) { return 1000000ULL * (clockEnd - clockStart) / CLOCKS_PER_SEC; }
+PTime UTIL_getSpanTimeNano(UTIL_time_t clockStart, UTIL_time_t clockEnd) { return 1000000000ULL * (clockEnd - clockStart) / CLOCKS_PER_SEC; }
+
+#endif
+
+
+
+/* returns time span in microseconds */
 PTime UTIL_clockSpanMicro(UTIL_time_t clockStart )
 {
     UTIL_time_t const clockEnd = UTIL_getTime();
     return UTIL_getSpanTimeMicro(clockStart, clockEnd);
 }
 
+/* returns time span in microseconds */
 PTime UTIL_clockSpanNano(UTIL_time_t clockStart )
 {
     UTIL_time_t const clockEnd = UTIL_getTime();
@@ -156,13 +166,4 @@ void UTIL_waitForNextTick(void)
     do {
         clockEnd = UTIL_getTime();
     } while (UTIL_getSpanTimeNano(clockStart, clockEnd) == 0);
-}
-
-int UTIL_support_MT_measurements(void)
-{
-# if defined(TIME_MT_MEASUREMENTS_NOT_SUPPORTED)
-    return 0;
-# else
-    return 1;
-# endif
 }

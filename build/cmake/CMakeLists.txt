@@ -1,5 +1,5 @@
 # ################################################################
-# Copyright (c) Meta Platforms, Inc. and affiliates.
+# Copyright (c) 2016-present, Yann Collet, Facebook, Inc.
 # All rights reserved.
 #
 # This source code is licensed under both the BSD-style license (found in the
@@ -8,18 +8,18 @@
 # ################################################################
 
 cmake_minimum_required(VERSION 2.8.12 FATAL_ERROR)
-
-# As of 2018-12-26 ZSTD has been validated to build with cmake version 3.13.2 new policies.
-# Set and use the newest cmake policies that are validated to work
-set(ZSTD_MAX_VALIDATED_CMAKE_MAJOR_VERSION "3")
+  
+# As of 2018-12-26 ZSTD has been validated to build with cmake version 3.13.2 new policies. 
+# Set and use the newest cmake policies that are validated to work 
+set(ZSTD_MAX_VALIDATED_CMAKE_MAJOR_VERSION "3") 
 set(ZSTD_MAX_VALIDATED_CMAKE_MINOR_VERSION "13") #Policies never changed at PATCH level
 if("${CMAKE_MAJOR_VERSION}" LESS 3)
-  set(ZSTD_CMAKE_POLICY_VERSION "${CMAKE_VERSION}")
-elseif( "${ZSTD_MAX_VALIDATED_CMAKE_MAJOR_VERSION}" EQUAL "${CMAKE_MAJOR_VERSION}" AND
+  set(ZSTD_CMAKE_POLICY_VERSION "${CMAKE_VERSION}") 
+elseif( "${ZSTD_MAX_VALIDATED_CMAKE_MAJOR_VERSION}" EQUAL "${CMAKE_MAJOR_VERSION}" AND 
         "${ZSTD_MAX_VALIDATED_CMAKE_MINOR_VERSION}" GREATER "${CMAKE_MINOR_VERSION}")
-    set(ZSTD_CMAKE_POLICY_VERSION "${CMAKE_VERSION}")
-else()
-    set(ZSTD_CMAKE_POLICY_VERSION "${ZSTD_MAX_VALIDATED_CMAKE_MAJOR_VERSION}.${ZSTD_MAX_VALIDATED_CMAKE_MINOR_VERSION}.0")
+    set(ZSTD_CMAKE_POLICY_VERSION "${CMAKE_VERSION}") 
+else() 
+    set(ZSTD_CMAKE_POLICY_VERSION "${ZSTD_MAX_VALIDATED_CMAKE_MAJOR_VERSION}.${ZSTD_MAX_VALIDATED_CMAKE_MINOR_VERSION}.0") 
 endif()
 cmake_policy(VERSION ${ZSTD_CMAKE_POLICY_VERSION})
 
@@ -40,18 +40,16 @@ if( CMAKE_MAJOR_VERSION LESS 3 )
   set(PROJECT_VERSION_PATCH ${zstd_VERSION_PATCH})
   set(PROJECT_VERSION "${zstd_VERSION_MAJOR}.${zstd_VERSION_MINOR}.${zstd_VERSION_PATCH}")
   enable_language(C)   # Main library is in C
-  enable_language(ASM) # And ASM
   enable_language(CXX) # Testing contributed code also utilizes CXX
 else()
   project(zstd
     VERSION "${zstd_VERSION_MAJOR}.${zstd_VERSION_MINOR}.${zstd_VERSION_PATCH}"
     LANGUAGES C   # Main library is in C
-              ASM # And ASM
               CXX # Testing contributed code also utilizes CXX
     )
 endif()
 message(STATUS "ZSTD VERSION: ${zstd_VERSION}")
-set(zstd_HOMEPAGE_URL "https://facebook.github.io/zstd")
+set(zstd_HOMEPAGE_URL "http://www.zstd.net")
 set(zstd_DESCRIPTION  "Zstandard is a real-time compression algorithm, providing high compression ratios.")
 
 # Set a default build type if none was specified
@@ -84,12 +82,11 @@ message(STATUS "CMAKE_INSTALL_LIBDIR: ${CMAKE_INSTALL_LIBDIR}")
 #-----------------------------------------------------------------------------
 
 # Legacy support
-option(ZSTD_LEGACY_SUPPORT "LEGACY SUPPORT" ON)
+option(ZSTD_LEGACY_SUPPORT "LEGACY SUPPORT" OFF)
 
 if (ZSTD_LEGACY_SUPPORT)
     message(STATUS "ZSTD_LEGACY_SUPPORT defined!")
-    set(ZSTD_LEGACY_LEVEL 5 CACHE STRING "")
-    add_definitions(-DZSTD_LEGACY_SUPPORT=${ZSTD_LEGACY_LEVEL})
+    add_definitions(-DZSTD_LEGACY_SUPPORT=5)
 else ()
     message(STATUS "ZSTD_LEGACY_SUPPORT not defined!")
     add_definitions(-DZSTD_LEGACY_SUPPORT=0)
