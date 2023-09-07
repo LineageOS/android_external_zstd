@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * Copyright (c) 2018-present, Yann Collet, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -19,7 +19,7 @@
 /*---  Dependencies  ---*/
 
 #include <stddef.h>   /* size_t */
-#include <stdlib.h>   /* malloc, free, abort, qsort*/
+#include <stdlib.h>   /* malloc, free, abort */
 #include <stdio.h>    /* fprintf */
 #include <limits.h>   /* UINT_MAX */
 #include <assert.h>   /* assert */
@@ -39,7 +39,6 @@
 #define BLOCKSIZE_DEFAULT 0  /* no slicing into blocks */
 #define DICTSIZE  (4 KB)
 #define CLEVEL_DEFAULT 3
-#define DICT_LOAD_METHOD ZSTD_dlm_byCopy
 
 #define BENCH_TIME_DEFAULT_S   6
 #define RUN_TIME_DEFAULT_MS    1000
@@ -155,6 +154,19 @@ createDictionaryBuffer(const char* dictionaryName,
         result.size = dictSize;
         return result;
     }
+}
+
+static ZSTD_CDict* createCDictForDedicatedDictSearch(const void* dict, size_t dictSize, int compressionLevel)
+{
+    ZSTD_CCtx_params* params = ZSTD_createCCtxParams();
+    ZSTD_CCtxParams_init(params, compressionLevel);
+    ZSTD_CCtxParams_setParameter(params, ZSTD_c_enableDedicatedDictSearch, 1);
+    ZSTD_CCtxParams_setParameter(params, ZSTD_c_compressionLevel, compressionLevel);
+
+    ZSTD_CDict* cdict = ZSTD_createCDict_advanced2(dict, dictSize, ZSTD_dlm_byCopy, ZSTD_dct_auto, params, ZSTD_defaultCMem);
+
+    ZSTD_freeCCtxParams(params);
+    return cdict;
 }
 
 /*! BMK_loadFiles() :
@@ -449,12 +461,14 @@ static void freeCDictCollection(cdict_collection_t cdictc)
 }
 
 /* returns .buffers=NULL if operation fails */
-static cdict_collection_t createCDictCollection(const void* dictBuffer, size_t dictSize, size_t nbCDict, ZSTD_dictContentType_e dictContentType, ZSTD_CCtx_params* cctxParams)
+static cdict_collection_t createCDictCollection(const void* dictBuffer, size_t dictSize, size_t nbCDict, int cLevel, int dedicatedDictSearch)
 {
     ZSTD_CDict** const cdicts = malloc(nbCDict * sizeof(ZSTD_CDict*));
     if (cdicts==NULL) return kNullCDictCollection;
     for (size_t dictNb=0; dictNb < nbCDict; dictNb++) {
-        cdicts[dictNb] = ZSTD_createCDict_advanced2(dictBuffer, dictSize, DICT_LOAD_METHOD, dictContentType, cctxParams, ZSTD_defaultCMem);
+        cdicts[dictNb] = dedicatedDictSearch ?
+            createCDictForDedicatedDictSearch(dictBuffer, dictSize, cLevel) :
+            ZSTD_createCDict(dictBuffer, dictSize, cLevel);
         CONTROL(cdicts[dictNb] != NULL);
     }
     cdict_collection_t cdictc;
@@ -577,13 +591,11 @@ typedef struct {
     cdict_collection_t dictionaries;
 } compressInstructions;
 
-compressInstructions createCompressInstructions(cdict_collection_t dictionaries, ZSTD_CCtx_params* cctxParams)
+compressInstructions createCompressInstructions(cdict_collection_t dictionaries)
 {
     compressInstructions ci;
     ci.cctx = ZSTD_createCCtx();
     CONTROL(ci.cctx != NULL);
-    if (cctxParams)
-      ZSTD_CCtx_setParametersUsingCCtxParams(ci.cctx, cctxParams);
     ci.nbDicts = dictionaries.nbCDict;
     ci.dictNb = 0;
     ci.dictionaries = dictionaries;
@@ -624,10 +636,10 @@ size_t compress(const void* src, size_t srcSize, void* dst, size_t dstCapacity, 
     compressInstructions* const ci = (compressInstructions*) payload;
     (void)dstCapacity;
 
-    ZSTD_CCtx_refCDict(ci->cctx, ci->dictionaries.cdicts[ci->dictNb]);
-    ZSTD_compress2(ci->cctx,
-            dst, srcSize,
-            src, srcSize);
+    ZSTD_compress_usingCDict(ci->cctx,
+                    dst, srcSize,
+                    src, srcSize,
+                    ci->dictionaries.cdicts[ci->dictNb]);
 
     ci->dictNb = ci->dictNb + 1;
     if (ci->dictNb >= ci->nbDicts) ci->dictNb = 0;
@@ -651,55 +663,25 @@ size_t decompress(const void* src, size_t srcSize, void* dst, size_t dstCapacity
     return result;
 }
 
-typedef enum {
-  fastest = 0,
-  median = 1,
-} metricAggregatePref_e;
 
-/* compareFunction() :
- * Sort input in decreasing order when used with qsort() */
-int compareFunction(const void *a, const void *b)
-{
-  double x = *(const double *)a;
-  double y = *(const double *)b;
-  if (x < y)
-    return 1;
-  else if (x > y)
-    return -1;
-  return 0;
-}
-
-double aggregateData(double *data, size_t size,
-                     metricAggregatePref_e metricAggregatePref)
-{
-  qsort(data, size, sizeof(*data), compareFunction);
-  if (metricAggregatePref == fastest)
-    return data[0];
-  else /* median */
-    return (data[(size - 1) / 2] + data[size / 2]) / 2;
-}
-
-static int benchMem(slice_collection_t dstBlocks, slice_collection_t srcBlocks,
+static int benchMem(slice_collection_t dstBlocks,
+                    slice_collection_t srcBlocks,
                     ddict_collection_t ddictionaries,
-                    cdict_collection_t cdictionaries, unsigned nbRounds,
-                    int benchCompression, const char *exeName,
-                    ZSTD_CCtx_params *cctxParams,
-                    metricAggregatePref_e metricAggregatePref)
+                    cdict_collection_t cdictionaries,
+                    unsigned nbRounds, int benchCompression)
 {
     assert(dstBlocks.nbSlices == srcBlocks.nbSlices);
-    if (benchCompression) assert(cctxParams);
 
     unsigned const ms_per_round = RUN_TIME_DEFAULT_MS;
     unsigned const total_time_ms = nbRounds * ms_per_round;
 
-    double *const speedPerRound = (double *)malloc(nbRounds * sizeof(double));
+    double bestSpeed = 0.;
 
     BMK_timedFnState_t* const benchState =
             BMK_createTimedFnState(total_time_ms, ms_per_round);
 
     decompressInstructions di = createDecompressInstructions(ddictionaries);
-    compressInstructions ci =
-        createCompressInstructions(cdictionaries, cctxParams);
+    compressInstructions ci = createCompressInstructions(cdictionaries);
     void* payload = benchCompression ? (void*)&ci : (void*)&di;
     BMK_benchParams_t const bp = {
         .benchFn = benchCompression ? compress : decompress,
@@ -715,7 +697,6 @@ static int benchMem(slice_collection_t dstBlocks, slice_collection_t srcBlocks,
         .blockResults = NULL
     };
 
-    size_t roundNb = 0;
     for (;;) {
         BMK_runOutcome_t const outcome = BMK_benchTimedFn(benchState, bp);
         CONTROL(BMK_isSuccessful_runOutcome(outcome));
@@ -725,57 +706,16 @@ static int benchMem(slice_collection_t dstBlocks, slice_collection_t srcBlocks,
         double const dTime_sec = (double)dTime_ns / 1000000000;
         size_t const srcSize = result.sumOfReturn;
         double const speed_MBps = (double)srcSize / dTime_sec / (1 MB);
-        speedPerRound[roundNb] = speed_MBps;
+        if (speed_MBps > bestSpeed) bestSpeed = speed_MBps;
         if (benchCompression)
-            DISPLAY("Compression Speed : %.1f MB/s \r", speed_MBps);
+            DISPLAY("Compression Speed : %.1f MB/s \r", bestSpeed);
         else
-            DISPLAY("Decompression Speed : %.1f MB/s \r", speed_MBps);
+            DISPLAY("Decompression Speed : %.1f MB/s \r", bestSpeed);
 
         fflush(stdout);
         if (BMK_isCompleted_TimedFn(benchState)) break;
-        roundNb++;
     }
     DISPLAY("\n");
-    /* BMK_benchTimedFn may not run exactly nbRounds iterations */
-    double speedAggregated =
-        aggregateData(speedPerRound, roundNb + 1, metricAggregatePref);
-    if (metricAggregatePref == fastest)
-      DISPLAY("Fastest Speed : %.1f MB/s \n", speedAggregated);
-    else
-      DISPLAY("Median Speed : %.1f MB/s \n", speedAggregated);
-
-    char* csvFileName = malloc(strlen(exeName) + 5);
-    strcpy(csvFileName, exeName);
-    strcat(csvFileName, ".csv");
-    FILE* csvFile = fopen(csvFileName, "r");
-    if (!csvFile) {
-        csvFile = fopen(csvFileName, "wt");
-        assert(csvFile);
-        fprintf(csvFile, "%s\n", exeName);
-        /* Print table headers */
-        fprintf(
-            csvFile,
-            "Compression/Decompression,Level,nbDicts,dictAttachPref,metricAggregatePref,Speed\n");
-    } else {
-        fclose(csvFile);
-        csvFile = fopen(csvFileName, "at");
-        assert(csvFile);
-    }
-
-    int cLevel = -1;
-    int dictAttachPref = -1;
-    if (benchCompression) {
-      ZSTD_CCtxParams_getParameter(cctxParams, ZSTD_c_compressionLevel,
-                                   &cLevel);
-      ZSTD_CCtxParams_getParameter(cctxParams, ZSTD_c_forceAttachDict,
-                                   &dictAttachPref);
-    }
-    fprintf(csvFile, "%s,%d,%ld,%d,%d,%.1f\n",
-            benchCompression ? "Compression" : "Decompression", cLevel,
-            benchCompression ? ci.nbDicts : di.nbDicts, dictAttachPref,
-            metricAggregatePref, speedAggregated);
-    fclose(csvFile);
-    free(csvFileName);
 
     freeDecompressInstructions(di);
     freeCompressInstructions(ci);
@@ -790,11 +730,12 @@ static int benchMem(slice_collection_t dstBlocks, slice_collection_t srcBlocks,
  *  dictionary : optional (can be NULL), file to load as dictionary,
  *              if none provided : will be calculated on the fly by the program.
  * @return : 0 is success, 1+ otherwise */
-int bench(const char **fileNameTable, unsigned nbFiles, const char *dictionary,
-          size_t blockSize, int clevel, unsigned nbDictMax, unsigned nbBlocks,
+int bench(const char** fileNameTable, unsigned nbFiles,
+          const char* dictionary,
+          size_t blockSize, int clevel,
+          unsigned nbDictMax, unsigned nbBlocks,
           unsigned nbRounds, int benchCompression,
-          ZSTD_dictContentType_e dictContentType, ZSTD_CCtx_params *cctxParams,
-          const char *exeName, metricAggregatePref_e metricAggregatePref)
+          int dedicatedDictSearch)
 {
     int result = 0;
 
@@ -845,18 +786,20 @@ int bench(const char **fileNameTable, unsigned nbFiles, const char *dictionary,
     /* dictionary determination */
     buffer_t const dictBuffer = createDictionaryBuffer(dictionary,
                                 srcs.buffer.ptr,
-                                srcSlices.capacities, srcSlices.nbSlices,
+                                srcs.slices.capacities, srcs.slices.nbSlices,
                                 DICTSIZE);
     CONTROL(dictBuffer.ptr != NULL);
 
-    ZSTD_CDict* const cdict = ZSTD_createCDict_advanced2(dictBuffer.ptr, dictBuffer.size, DICT_LOAD_METHOD, dictContentType, cctxParams, ZSTD_defaultCMem);
+    ZSTD_CDict* const cdict = dedicatedDictSearch ?
+        createCDictForDedicatedDictSearch(dictBuffer.ptr, dictBuffer.size, clevel) :
+        ZSTD_createCDict(dictBuffer.ptr, dictBuffer.size, clevel);
     CONTROL(cdict != NULL);
 
     size_t const cTotalSizeNoDict = compressBlocks(NULL, dstSlices, srcSlices, NULL, clevel);
     CONTROL(cTotalSizeNoDict != 0);
     DISPLAYLEVEL(3, "compressing at level %u without dictionary : Ratio=%.2f  (%u bytes) \n",
                     clevel,
-                    (double)totalSrcSlicesSize / (double)cTotalSizeNoDict, (unsigned)cTotalSizeNoDict);
+                    (double)totalSrcSlicesSize / cTotalSizeNoDict, (unsigned)cTotalSizeNoDict);
 
     size_t* const cSizes = malloc(nbBlocks * sizeof(size_t));
     CONTROL(cSizes != NULL);
@@ -865,21 +808,21 @@ int bench(const char **fileNameTable, unsigned nbFiles, const char *dictionary,
     CONTROL(cTotalSize != 0);
     DISPLAYLEVEL(3, "compressed using a %u bytes dictionary : Ratio=%.2f  (%u bytes) \n",
                     (unsigned)dictBuffer.size,
-                    (double)totalSrcSlicesSize / (double)cTotalSize, (unsigned)cTotalSize);
+                    (double)totalSrcSlicesSize / cTotalSize, (unsigned)cTotalSize);
 
     /* now dstSlices contain the real compressed size of each block, instead of the maximum capacity */
     shrinkSizes(dstSlices, cSizes);
 
     unsigned const nbDicts = nbDictMax ? nbDictMax : nbBlocks;
 
-    cdict_collection_t const cdictionaries = createCDictCollection(dictBuffer.ptr, dictBuffer.size, nbDicts, dictContentType, cctxParams);
+    cdict_collection_t const cdictionaries = createCDictCollection(dictBuffer.ptr, dictBuffer.size, nbDicts, clevel, dedicatedDictSearch);
     CONTROL(cdictionaries.cdicts != NULL);
 
     ddict_collection_t const ddictionaries = createDDictCollection(dictBuffer.ptr, dictBuffer.size, nbDicts);
     CONTROL(ddictionaries.ddicts != NULL);
 
     if (benchCompression) {
-        size_t const dictMem = ZSTD_sizeof_CDict(cdictionaries.cdicts[0]);
+        size_t const dictMem = ZSTD_estimateCDictSize(dictBuffer.size, ZSTD_dlm_byCopy);
         size_t const allDictMem = dictMem * nbDicts;
         DISPLAYLEVEL(3, "generating %u dictionaries, using %.1f MB of memory \n",
                         nbDicts, (double)allDictMem / (1 MB));
@@ -889,13 +832,11 @@ int bench(const char **fileNameTable, unsigned nbFiles, const char *dictionary,
         buffer_collection_t resultCollection = createBufferCollection_fromSliceCollection(srcSlices);
         CONTROL(resultCollection.buffer.ptr != NULL);
 
-        result = benchMem(dstSlices, resultCollection.slices, ddictionaries,
-                          cdictionaries, nbRounds, benchCompression, exeName,
-                          cctxParams, metricAggregatePref);
+        result = benchMem(dstSlices, resultCollection.slices, ddictionaries, cdictionaries, nbRounds, benchCompression);
 
         freeBufferCollection(resultCollection);
     } else {
-        size_t const dictMem = ZSTD_estimateDDictSize(dictBuffer.size, DICT_LOAD_METHOD);
+        size_t const dictMem = ZSTD_estimateDDictSize(dictBuffer.size, ZSTD_dlm_byCopy);
         size_t const allDictMem = dictMem * nbDicts;
         DISPLAYLEVEL(3, "generating %u dictionaries, using %.1f MB of memory \n",
                         nbDicts, (double)allDictMem / (1 MB));
@@ -905,9 +846,7 @@ int bench(const char **fileNameTable, unsigned nbFiles, const char *dictionary,
         buffer_collection_t resultCollection = createBufferCollection_fromSliceCollectionSizes(srcSlices);
         CONTROL(resultCollection.buffer.ptr != NULL);
 
-        result = benchMem(resultCollection.slices, dstSlices, ddictionaries,
-                          cdictionaries, nbRounds, benchCompression, exeName,
-                          NULL, metricAggregatePref);
+        result = benchMem(resultCollection.slices, dstSlices, ddictionaries, cdictionaries, nbRounds, benchCompression);
 
         freeBufferCollection(resultCollection);
     }
@@ -985,15 +924,9 @@ int usage(const char* exeName)
     DISPLAY ("-#          : use compression level # (default: %u) \n", CLEVEL_DEFAULT);
     DISPLAY ("-D #        : use # as a dictionary (default: create one) \n");
     DISPLAY ("-i#         : nb benchmark rounds (default: %u) \n", BENCH_TIME_DEFAULT_S);
-    DISPLAY ("-p#         : print speed for all rounds 0=fastest 1=median (default: 0) \n");
     DISPLAY ("--nbBlocks=#: use # blocks for bench (default: one per file) \n");
     DISPLAY ("--nbDicts=# : create # dictionaries for bench (default: one per block) \n");
     DISPLAY ("-h          : help (this text) \n");
-    DISPLAY (" \n");
-    DISPLAY ("Advanced Options (see zstd.h for documentation) : \n");
-    DISPLAY ("--dedicated-dict-search\n");
-    DISPLAY ("--dict-content-type=#\n");
-    DISPLAY ("--dict-attach-pref=#\n");
     return 0;
 }
 
@@ -1023,10 +956,6 @@ int main (int argc, const char** argv)
     size_t blockSize = BLOCKSIZE_DEFAULT;
     unsigned nbDicts = 0;  /* determine nbDicts automatically: 1 dictionary per block */
     unsigned nbBlocks = 0; /* determine nbBlocks automatically, from source and blockSize */
-    ZSTD_dictContentType_e dictContentType = ZSTD_dct_auto;
-    ZSTD_dictAttachPref_e dictAttachPref = ZSTD_dictDefaultAttach;
-    ZSTD_paramSwitch_e prefetchCDictTables = ZSTD_ps_auto;
-    metricAggregatePref_e metricAggregatePref = fastest;
 
     for (int argNb = 1; argNb < argc ; argNb++) {
         const char* argument = argv[argNb];
@@ -1036,7 +965,6 @@ int main (int argc, const char** argv)
         if (!strcmp(argument, "-r")) { recursiveMode = 1; continue; }
         if (!strcmp(argument, "-D")) { argNb++; assert(argNb < argc); dictionary = argv[argNb]; continue; }
         if (longCommandWArg(&argument, "-i")) { nbRounds = readU32FromChar(&argument); continue; }
-        if (longCommandWArg(&argument, "-p")) { metricAggregatePref = (int)readU32FromChar(&argument); continue;}
         if (longCommandWArg(&argument, "--dictionary=")) { dictionary = argument; continue; }
         if (longCommandWArg(&argument, "-B")) { blockSize = readU32FromChar(&argument); continue; }
         if (longCommandWArg(&argument, "--blockSize=")) { blockSize = readU32FromChar(&argument); continue; }
@@ -1044,9 +972,6 @@ int main (int argc, const char** argv)
         if (longCommandWArg(&argument, "--nbBlocks=")) { nbBlocks = readU32FromChar(&argument); continue; }
         if (longCommandWArg(&argument, "--clevel=")) { cLevel = (int)readU32FromChar(&argument); continue; }
         if (longCommandWArg(&argument, "--dedicated-dict-search")) { dedicatedDictSearch = 1; continue; }
-        if (longCommandWArg(&argument, "--dict-content-type=")) { dictContentType = (int)readU32FromChar(&argument); continue; }
-        if (longCommandWArg(&argument, "--dict-attach-pref=")) { dictAttachPref = (int)readU32FromChar(&argument); continue; }
-        if (longCommandWArg(&argument, "--prefetch-cdict-tables=")) { prefetchCDictTables = (int)readU32FromChar(&argument); continue; }
         if (longCommandWArg(&argument, "-")) { cLevel = (int)readU32FromChar(&argument); continue; }
         /* anything that's not a command is a filename */
         nameTable[nameIdx++] = argument;
@@ -1064,22 +989,10 @@ int main (int argc, const char** argv)
         nameTable = NULL;  /* UTIL_createFileNamesTable() takes ownership of nameTable */
     }
 
-    ZSTD_CCtx_params* cctxParams = ZSTD_createCCtxParams();
-    ZSTD_CCtxParams_init(cctxParams, cLevel);
-    ZSTD_CCtxParams_setParameter(cctxParams, ZSTD_c_enableDedicatedDictSearch, dedicatedDictSearch);
-    ZSTD_CCtxParams_setParameter(cctxParams, ZSTD_c_nbWorkers, 0);
-    ZSTD_CCtxParams_setParameter(cctxParams, ZSTD_c_forceAttachDict, dictAttachPref);
-    ZSTD_CCtxParams_setParameter(cctxParams, ZSTD_c_prefetchCDictTables, prefetchCDictTables);
-
-    int result =
-        bench(filenameTable->fileNames, (unsigned)filenameTable->tableSize,
-              dictionary, blockSize, cLevel, nbDicts, nbBlocks, nbRounds,
-              benchCompression, dictContentType, cctxParams, exeName,
-              metricAggregatePref);
+    int result = bench(filenameTable->fileNames, (unsigned)filenameTable->tableSize, dictionary, blockSize, cLevel, nbDicts, nbBlocks, nbRounds, benchCompression, dedicatedDictSearch);
 
     UTIL_freeFileNamesTable(filenameTable);
     free(nameTable);
-    ZSTD_freeCCtxParams(cctxParams);
 
     return result;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * Copyright (c) 2016-present, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -14,9 +14,7 @@
 #pragma once
 
 #include "utils/Likely.h"
-#include "utils/Portability.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstring>
 #include <stdexcept>

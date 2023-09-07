@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * Copyright (c) Yann Collet, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -12,8 +12,6 @@
 #ifndef FILEIO_H_23981798732
 #define FILEIO_H_23981798732
 
-#include "fileio_types.h"
-#include "util.h"                  /* FileNamesTable */
 #define ZSTD_STATIC_LINKING_ONLY   /* ZSTD_compressionParameters */
 #include "../lib/zstd.h"           /* ZSTD_* */
 
@@ -55,6 +53,10 @@ extern "C" {
 /*-*************************************
 *  Types
 ***************************************/
+typedef enum { FIO_zstdCompression, FIO_gzipCompression, FIO_xzCompression, FIO_lzmaCompression, FIO_lz4Compression } FIO_compressionType_t;
+
+typedef struct FIO_prefs_s FIO_prefs_t;
+
 FIO_prefs_t* FIO_createPreferences(void);
 void FIO_freePreferences(FIO_prefs_t* const prefs);
 
@@ -64,6 +66,9 @@ typedef struct FIO_ctx_s FIO_ctx_t;
 FIO_ctx_t* FIO_createContext(void);
 void FIO_freeContext(FIO_ctx_t* const fCtx);
 
+typedef struct FIO_display_prefs_s FIO_display_prefs_t;
+
+typedef enum { FIO_ps_auto, FIO_ps_never, FIO_ps_always } FIO_progressSetting_e;
 
 /*-*************************************
 *  Parameters
@@ -71,7 +76,7 @@ void FIO_freeContext(FIO_ctx_t* const fCtx);
 /* FIO_prefs_t functions */
 void FIO_setCompressionType(FIO_prefs_t* const prefs, FIO_compressionType_t compressionType);
 void FIO_overwriteMode(FIO_prefs_t* const prefs);
-void FIO_setAdaptiveMode(FIO_prefs_t* const prefs, int adapt);
+void FIO_setAdaptiveMode(FIO_prefs_t* const prefs, unsigned adapt);
 void FIO_setAdaptMin(FIO_prefs_t* const prefs, int minCLevel);
 void FIO_setAdaptMax(FIO_prefs_t* const prefs, int maxCLevel);
 void FIO_setUseRowMatchFinder(FIO_prefs_t* const prefs, int useRowMatchFinder);
@@ -86,8 +91,8 @@ void FIO_setLdmMinMatch(FIO_prefs_t* const prefs, int ldmMinMatch);
 void FIO_setMemLimit(FIO_prefs_t* const prefs, unsigned memLimit);
 void FIO_setNbWorkers(FIO_prefs_t* const prefs, int nbWorkers);
 void FIO_setOverlapLog(FIO_prefs_t* const prefs, int overlapLog);
-void FIO_setRemoveSrcFile(FIO_prefs_t* const prefs, int flag);
-void FIO_setSparseWrite(FIO_prefs_t* const prefs, int sparse);  /**< 0: no sparse; 1: disable on stdout; 2: always enabled */
+void FIO_setRemoveSrcFile(FIO_prefs_t* const prefs, unsigned flag);
+void FIO_setSparseWrite(FIO_prefs_t* const prefs, unsigned sparse);  /**< 0: no sparse; 1: disable on stdout; 2: always enabled */
 void FIO_setRsyncable(FIO_prefs_t* const prefs, int rsyncable);
 void FIO_setStreamSrcSize(FIO_prefs_t* const prefs, size_t streamSrcSize);
 void FIO_setTargetCBlockSize(FIO_prefs_t* const prefs, size_t targetCBlockSize);
@@ -104,9 +109,6 @@ void FIO_setAllowBlockDevices(FIO_prefs_t* const prefs, int allowBlockDevices);
 void FIO_setPatchFromMode(FIO_prefs_t* const prefs, int value);
 void FIO_setContentSize(FIO_prefs_t* const prefs, int value);
 void FIO_displayCompressionParameters(const FIO_prefs_t* prefs);
-void FIO_setAsyncIOFlag(FIO_prefs_t* const prefs, int value);
-void FIO_setPassThroughFlag(FIO_prefs_t* const prefs, int value);
-void FIO_setMMapDict(FIO_prefs_t* const prefs, ZSTD_paramSwitch_e value);
 
 /* FIO_ctx_t functions */
 void FIO_setNbFilesTotal(FIO_ctx_t* const fCtx, int value);
@@ -169,9 +171,6 @@ int FIO_checkFilenameCollisions(const char** filenameTable, unsigned nbFiles);
 /* custom crash signal handler */
 void FIO_addAbortHandler(void);
 
-char const* FIO_zlibVersion(void);
-char const* FIO_lz4Version(void);
-char const* FIO_lzmaVersion(void);
 
 
 #if defined (__cplusplus)
