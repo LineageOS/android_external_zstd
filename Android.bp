@@ -72,7 +72,7 @@ cc_library {
     srcs: ["lib/*/*.c"],
     arch: {
         x86_64: {
-            srcs: ["lib/decompress/huf_decompress_amd64.S"],
+            cflags: ["-DZSTD_DISABLE_ASM"],
         },
     },
     cflags: ["-Wall", "-Werror"],
