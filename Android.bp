@@ -90,6 +90,9 @@ cc_library {
     apex_available: [
         "//apex_available:platform",
         "com.android.adbd",
+        "com.android.art",
+        "com.android.art.debug",
+        "com.android.runtime",
     ],
     visibility: [
         "//bootable/recovery:__subpackages__",
@@ -102,6 +105,7 @@ cc_library {
         "//external/rsync:__subpackages__",
         "//external/squashfs-tools/squashfs-tools:__subpackages__",
         "//external/stg:__subpackages__",
+        "//frameworks/libs/binary_translation/tools:__subpackages__",
         "//packages/modules/adb:__subpackages__",
         "//system/logging/logd:__subpackages__",
         "//system/update_engine:__subpackages__",
@@ -109,7 +113,9 @@ cc_library {
         "//system/core/init:__subpackages__",
         "//system/core/fastboot:__subpackages__",
         "//system/extras/partition_tools:__subpackages__",
+        "//system/unwinding/libunwindstack:__subpackages__",
     ],
+    product_available: true,
     recovery_available: true,
     vendor_available: true,
     system_ext_specific: true,
