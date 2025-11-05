@@ -99,6 +99,7 @@ cc_library {
         "//art:__subpackages__",
         "//bootable/recovery:__subpackages__",
         "//cts/tests/tests/simpleperf:__subpackages__",
+        "//device:__subpackages__",
         "//device/google/contexthub/util/nanoapp_postprocess:__subpackages__",
         "//external/bcc/libbpf-tools:__subpackages__",
         "//external/bpftool:__subpackages__",
