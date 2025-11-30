@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "2e81ac31_a3333548",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 34519
+      },
+      "writtenOn": "2025-11-30T08:52:22Z",
+      "side": 1,
+      "message": "Needs to be merged for lineage-23.1 zstd errors out",
+      "revId": "614a5b7f3c5ffecf499348ca679da694990518eb",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
