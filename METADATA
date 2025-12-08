@@ -6,6 +6,9 @@ name: "zstd"
 description: "Zstandard - Fast real-time compression algorithm"
 third_party {
   license_type: RESTRICTED
+  security {
+    tag: "NVD-CPE2.3:cpe:/a:facebook:zstandard:1.5.7"
+  }
   last_upgrade_date {
     year: 2025
     month: 2
