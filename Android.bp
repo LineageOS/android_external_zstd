@@ -92,6 +92,7 @@ cc_library {
         "//system/fs/fs_mgr/libsnapshot:__subpackages__",
         "//system/unwinding/libunwindstack:__subpackages__",
         "//test/pts:__subpackages__",
+        "//vendor:__subpackages__",
     ],
     product_available: true,
     recovery_available: true,
